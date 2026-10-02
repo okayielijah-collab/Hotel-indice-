@@ -20,6 +20,7 @@ export type ProviderInventory = {
 
 export type ProviderSearchRequest = {
   hotelIds: string[];
+  destination?: string;
   adults: number;
   children: number;
   checkIn: string;
@@ -30,6 +31,7 @@ export type ProviderSearchRequest = {
 export type ProviderSearchResult = {
   provider: string;
   hotels: ProviderInventory[];
+  catalogHotels?: Hotel[];
   fetchedAt: string;
 };
 

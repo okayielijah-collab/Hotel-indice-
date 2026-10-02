@@ -8,7 +8,7 @@ const initialTrip: TripRequest = { destination: "", party: "", vibe: "", budget:
 
 export default async function Home() {
   let matches = [] as ReturnType<typeof rankHotels>;
-  let source: "supabase" | "demo" = "supabase";
+  let source: "supabase" | "demo" | "provider" = "supabase";
   let catalogError: string | undefined;
   try {
     const catalog = await getCatalog();

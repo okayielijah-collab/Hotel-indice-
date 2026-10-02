@@ -9,6 +9,12 @@ export type TripRequest = {
   budget: PriceTier | "Any";
   amenities: string[];
   query: string;
+  checkIn?: string;
+  checkOut?: string;
+  adults?: number;
+  children?: number;
+  maxPrice?: number | null;
+  minRoomSizeSqm?: number | null;
 };
 
 export type MatchEvidence = {
@@ -23,6 +29,7 @@ export type Match = {
   things_to_know: string;
   score: number;
   evidence: MatchEvidence[];
+  liveRate?: boolean;
 };
 
 const aliases: Record<string, string[]> = {
@@ -229,6 +236,11 @@ function inferPurpose(q: string) {
 }
 
 function inferParty(q: string) {
+  const numericParty = q.match(/\b(\d{1,2})\s+(?:people|persons|guests|travelers|travellers)\b/i);
+  if (numericParty) {
+    return `${Number(numericParty[1])} people`;
+  }
+
   if (/\b(?:me and my kids|my kids|children|family|with the kids)\b/i.test(q)) {
     return "family";
   }
@@ -312,6 +324,18 @@ function inferAmenityStrength(q: string, amenity: string) {
     );
 
     if (withCue.test(q)) return "required";
+
+    // Direct feature phrasing commonly means the traveler expects the amenity,
+    // e.g. "fast Wi-Fi", "breakfast included", "parking", or "a workspace".
+    const directRequirement = new RegExp(
+      `\\b(?:fast\\s+)?${escaped}\\b(?:\\s+(?:included|available))?`,
+      "i",
+    );
+
+    if (directRequirement.test(q)) {
+      const context = contextAround(q, word);
+      if (!isAvoidLanguage(context)) return "required";
+    }
 
     return classifyMention(q, word);
   }
@@ -403,8 +427,16 @@ export function interpretTrip(request: TripRequest) {
   const foundBudget = inferBudget(q);
   const budget = request.budget !== "Any" ? request.budget : foundBudget;
 
-  const maxPrice = inferMaxPrice(q);
-  const minRoomSizeSqm = inferMinRoomSizeSqm(q);
+  const parsedMaxPrice = inferMaxPrice(q);
+  const parsedMinRoomSizeSqm = inferMinRoomSizeSqm(q);
+
+  const maxPrice =
+    request.maxPrice !== undefined ? request.maxPrice : parsedMaxPrice;
+
+  const minRoomSizeSqm =
+    request.minRoomSizeSqm !== undefined
+      ? request.minRoomSizeSqm
+      : parsedMinRoomSizeSqm;
 
   const signals = [
     ...new Set([

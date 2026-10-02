@@ -140,7 +140,18 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
     });
     if (selectedId && matches.length < 5) {
       const selected = matches.find(({ hotel }) => hotel.id === selectedId)?.hotel;
-      if (selected) map.current?.flyTo([selected.latitude, selected.longitude], Math.max(map.current.getZoom(), 10), { duration: .6 });
+
+      if (
+        selected &&
+        Number.isFinite(Number(selected.latitude)) &&
+        Number.isFinite(Number(selected.longitude))
+      ) {
+        map.current?.flyTo(
+          [Number(selected.latitude), Number(selected.longitude)],
+          Math.max(map.current.getZoom(), 10),
+          { duration: 0.6 },
+        );
+      }
     }
   }, [selectedId, matches]);
 

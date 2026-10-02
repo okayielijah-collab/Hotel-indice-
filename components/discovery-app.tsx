@@ -9,7 +9,7 @@ import {
   type FormEvent,
 } from "react";
 import { z } from "zod";
-import {
+import { ChevronDown,
   ArrowRight,
   ArrowUpRight,
   ChevronLeft,
@@ -64,6 +64,10 @@ const blankTrip: TripRequest = {
   budget: "Any",
   amenities: [],
   query: "",
+  checkIn: "",
+  checkOut: "",
+  adults: 2,
+  children: 0,
 };
 const amenityChoices = [
   "fast_wifi",
@@ -101,7 +105,7 @@ type InterpretedTrip = ReturnType<typeof interpretTrip>;
 type MatchResponse = {
   matches: Match[];
   total: number;
-  source: "supabase" | "demo";
+  source: "supabase" | "demo" | "provider";
   enhanced: boolean;
   interpreted?: InterpretedTrip;
   error?: string;
@@ -161,11 +165,33 @@ function tripTitle(trip: TripRequest): string {
 function tripSummary(trip: TripRequest): string {
   const interpreted = interpretTrip(trip);
   const tags: string[] = [];
-  if (interpreted.vibe && vibeLabels[interpreted.vibe]) tags.push(vibeLabels[interpreted.vibe]);
-  if (interpreted.amenities.length) {
-    tags.push(...interpreted.amenities.slice(0, 2).map((amenity) => amenityLabels[amenity] || amenity));
+
+  if (interpreted.party) {
+    tags.push(interpreted.party);
   }
-  if (interpreted.budget !== "Any") tags.push(interpreted.budget);
+
+  if (interpreted.maxPrice) {
+    tags.push(`Up to $${interpreted.maxPrice}/night`);
+  } else if (interpreted.budget !== "Any") {
+    tags.push(interpreted.budget);
+  }
+
+  if (interpreted.minRoomSizeSqm) {
+    tags.push(`Room ≥ ${interpreted.minRoomSizeSqm} sqm`);
+  }
+
+  if (interpreted.amenities.length) {
+    tags.push(
+      ...interpreted.amenities
+        .slice(0, 2)
+        .map((amenity) => amenityLabels[amenity] || amenity),
+    );
+  }
+
+  if (!tags.length && interpreted.vibe && vibeLabels[interpreted.vibe]) {
+    tags.push(vibeLabels[interpreted.vibe]);
+  }
+
   return tags.slice(0, 3).join(" · ") || trip.query.trim() || "Personalized hotel search";
 }
 
@@ -176,7 +202,7 @@ function partnerLinks(hotel: Hotel): { label: string; href: string }[] {
   ];
 }
 
-type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities";
+type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities" | "match";
 
 function ratingBar(value: number, max = 5) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
@@ -254,6 +280,7 @@ function HotelDetailDialog({
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="pros">Pros and Cons</TabsTrigger>
             <TabsTrigger value="amenities">Amenities</TabsTrigger>
+            {match && <TabsTrigger value="match">Why it matches</TabsTrigger>}
           </TabsList>
           <div className="detail-tab-body">
             <TabsContent value="ratings">
@@ -282,48 +309,19 @@ function HotelDetailDialog({
               </button>
             </TabsContent>
             <TabsContent value="photos">
-              <div className="gallery-stage">
-                <img
-                  src={hotel.image_urls[photoIndex]}
-                  alt={`${hotel.name} gallery image ${photoIndex + 1} of ${hotel.image_urls.length}; illustrative`}
-                />
-                <button
-                  type="button"
-                  className="gallery-arrow gallery-prev"
-                  onClick={() =>
-                    setPhotoIndex(
-                      (photoIndex + hotel.image_urls.length - 1) %
-                        hotel.image_urls.length,
-                    )
-                  }
-                  aria-label="Previous image"
-                >
-                  <ChevronLeft size={24} />
-                </button>
-                <button
-                  type="button"
-                  className="gallery-arrow gallery-next"
-                  onClick={() =>
-                    setPhotoIndex((photoIndex + 1) % hotel.image_urls.length)
-                  }
-                  aria-label="Next image"
-                >
-                  <ChevronRight size={24} />
-                </button>
-                <span className="gallery-counter">
-                  {photoIndex + 1} / {hotel.image_urls.length}
-                </span>
-              </div>
-              <div className="gallery-thumbs">
+              <div className="hotel-photo-grid">
                 {hotel.image_urls.map((url, index) => (
                   <button
                     type="button"
                     key={url}
-                    className={index === photoIndex ? "active" : ""}
+                    className={`hotel-photo-tile${index === photoIndex ? " active" : ""}`}
                     onClick={() => setPhotoIndex(index)}
-                    aria-label={`Show gallery image ${index + 1}`}
+                    aria-label={`View gallery image ${index + 1}`}
                   >
-                    <img src={url} alt="" />
+                    <img
+                      src={url}
+                      alt={`${hotel.name} gallery image ${index + 1}; illustrative`}
+                    />
                   </button>
                 ))}
               </div>
@@ -351,6 +349,58 @@ function HotelDetailDialog({
                 ))}
               </div>
             </TabsContent>
+            {match && (
+              <TabsContent value="match">
+                <div className="match-detail-intro">
+                  <p className="detail-row-label">Why it fits</p>
+                  <p className="detail-pro">{match.why_it_matches}</p>
+                </div>
+
+                {match.evidence?.some((item) => item.type === "match") && (
+                  <div className="match-detail-section">
+                    <p className="detail-row-label">Matches your trip</p>
+                    <div className="match-detail-list">
+                      {match.evidence
+                        .filter((item) => item.type === "match")
+                        .map((item, i) => (
+                          <div
+                            className="match-detail-item"
+                            key={`detail-match-${i}`}
+                          >
+                            <span className="evidence-check">✓</span>
+                            <div>
+                              <strong>{item.label}</strong>
+                              <p>{item.detail}</p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {match.evidence?.some((item) => item.type !== "match") && (
+                  <div className="match-detail-section">
+                    <p className="detail-row-label">Reality Check</p>
+                    <div className="match-detail-list reality">
+                      {match.evidence
+                        .filter((item) => item.type !== "match")
+                        .map((item, i) => (
+                          <div
+                            className="match-detail-item"
+                            key={`detail-reality-${i}`}
+                          >
+                            <span className="evidence-warning">!</span>
+                            <div>
+                              <strong>{item.label}</strong>
+                              <p>{item.detail}</p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            )}
           </div>
         </Tabs>
       </DialogContent>
@@ -363,63 +413,59 @@ function TripForm({
   setTrip,
   onSubmit,
   busy,
+  variant = "full",
 }: {
   trip: TripRequest;
   setTrip: (trip: TripRequest) => void;
   onSubmit: () => void;
   busy: boolean;
+  variant?: "full" | "controls" | "search";
 }) {
   const id = useId();
+
   const update = (changes: Partial<TripRequest>) =>
     setTrip({ ...trip, ...changes });
+
   const toggleAmenity = (amenity: string) =>
     update({
       amenities: trip.amenities.includes(amenity)
         ? trip.amenities.filter((item) => item !== amenity)
         : [...trip.amenities, amenity],
     });
+
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    console.log("[HotelIndice] TripForm submitted", trip);
     onSubmit();
   };
+
+  const dateLabel =
+    trip.checkIn && trip.checkOut
+      ? `${trip.checkIn} → ${trip.checkOut}`
+      : "Any dates";
+
+  const guestLabel = `${trip.adults || 2} adult${(trip.adults || 2) === 1 ? "" : "s"}${
+    trip.children
+      ? ` · ${trip.children} child${trip.children === 1 ? "" : "ren"}`
+      : ""
+  }`;
+
+  const selectedAmenities = trip.amenities
+    .map((amenity) => amenityLabels[amenity] || amenity.replaceAll("_", " "))
+    .slice(0, 2);
+
   return (
-    <form className="trip-form" onSubmit={handleSubmit}>
-      <div className="form-intro">
-        <span className="eyebrow">
-          <Sparkles size={13} /> YOUR TRIP, YOUR WAY
-        </span>
-        <h2>Tell us what feels right.</h2>
-        <p>One detail or the whole plan. We&apos;ll make sense of it.</p>
-      </div>
-      <label className="field-label" htmlFor={`${id}-prompt`}>
-        Describe your stay
-      </label>
-      <div className="prompt-wrap">
-        <textarea
-          id={`${id}-prompt`}
-          value={trip.query}
-          onChange={(event) => update({ query: event.target.value })}
-          placeholder="A quiet hotel in Tokyo with great breakfast…"
-          rows={3}
-          maxLength={600}
-        />
-      </div>
-      <div className="form-divider">
-        <span>OR BUILD YOUR TRIP</span>
-      </div>
-      <div className="form-row">
-        <div className="field-block">
-          <label className="field-label" htmlFor={`${id}-destination`}>
-            Destination
-          </label>
+    <form className="trip-form trip-planner" onSubmit={handleSubmit}>
+      {variant !== "search" && (
+      <div className="trip-planner-controls">
+        <div className="planner-field">
+          <span className="planner-label">Destination</span>
           <Select
             value={trip.destination || "any"}
             onValueChange={(value) =>
               update({ destination: value === "any" ? "" : value })
             }
           >
-            <SelectTrigger id={`${id}-destination`} className="form-select">
+            <SelectTrigger id={`${id}-destination`} className="planner-select">
               <SelectValue placeholder="Anywhere" />
             </SelectTrigger>
             <SelectContent>
@@ -432,41 +478,82 @@ function TripForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="form-row two-cols">
-        <div className="field-block">
-          <label className="field-label" htmlFor={`${id}-party`}>
-            Traveling as
-          </label>
-          <Select
-            value={trip.party || "any"}
-            onValueChange={(value) =>
-              update({ party: value === "any" ? "" : value })
-            }
-          >
-            <SelectTrigger id={`${id}-party`} className="form-select">
-              <SelectValue placeholder="Anyone" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Anyone</SelectItem>
-              <SelectItem value="solo">Solo</SelectItem>
-              <SelectItem value="couple">Couple</SelectItem>
-              <SelectItem value="family">Family</SelectItem>
-              <SelectItem value="business">Business</SelectItem>
-            </SelectContent>
-          </Select>
+
+        <div className="planner-field planner-dates">
+          <span className="planner-label">Dates</span>
+          <div className="planner-date-values">
+            <input
+              id={`${id}-check-in`}
+              type="date"
+              className="planner-date-input"
+              value={trip.checkIn || ""}
+              onChange={(event) => update({ checkIn: event.target.value })}
+              aria-label="Check-in"
+            />
+            <span aria-hidden="true">→</span>
+            <input
+              id={`${id}-check-out`}
+              type="date"
+              className="planner-date-input"
+              value={trip.checkOut || ""}
+              min={trip.checkIn || undefined}
+              onChange={(event) => update({ checkOut: event.target.value })}
+              aria-label="Check-out"
+            />
+          </div>
+          <span className="planner-value planner-date-summary">
+            {dateLabel}
+          </span>
         </div>
-        <div className="field-block">
-          <label className="field-label" htmlFor={`${id}-budget`}>
-            Budget tier
-          </label>
+
+        <div className="planner-field">
+          <span className="planner-label">Guests</span>
+          <div className="planner-guest-row">
+            <select
+              className="planner-native-select"
+              value={trip.adults || 2}
+              onChange={(event) =>
+                update({ adults: Number(event.target.value) })
+              }
+              aria-label="Adults"
+            >
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                (count) => (
+                  <option key={count} value={count}>
+                    {count} adult{count === 1 ? "" : "s"}
+                  </option>
+                ),
+              )}
+            </select>
+            <select
+              className="planner-native-select"
+              value={trip.children || 0}
+              onChange={(event) =>
+                update({ children: Number(event.target.value) })
+              }
+              aria-label="Children"
+            >
+              {Array.from({ length: 7 }, (_, index) => index).map((count) => (
+                <option key={count} value={count}>
+                  {count} children
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="planner-value planner-guest-summary">
+            {guestLabel}
+          </span>
+        </div>
+
+        <div className="planner-field">
+          <span className="planner-label">Budget</span>
           <Select
             value={trip.budget}
             onValueChange={(value) =>
               update({ budget: value as TripRequest["budget"] })
             }
           >
-            <SelectTrigger id={`${id}-budget`} className="form-select">
+            <SelectTrigger id={`${id}-budget`} className="planner-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -478,85 +565,119 @@ function TripForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="field-block">
-        <label className="field-label" htmlFor={`${id}-vibe`}>
-          Your kind of place
-        </label>
-        <Select
-          value={trip.vibe || "any"}
-          onValueChange={(value) =>
-            update({ vibe: value === "any" ? "" : value })
-          }
-        >
-          <SelectTrigger id={`${id}-vibe`} className="form-select">
-            <SelectValue placeholder="Any vibe" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="any">Any vibe</SelectItem>
-            {[
-              "romantic",
-              "boutique",
-              "design_led",
-              "remote_work",
-              "family_friendly",
-              "quiet",
-              "wellness",
-              "beach",
-              "nightlife",
-              "cultural",
-            ].map((vibe) => (
-              <SelectItem key={vibe} value={vibe}>
-                {vibeLabels[vibe]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <fieldset className="amenity-fieldset">
-        <legend className="field-label">Must-haves</legend>
-        <div className="amenity-grid">
-          {amenityChoices.map((amenity) => (
-            <label className="amenity-choice" key={amenity}>
-              <Checkbox
-                checked={trip.amenities.includes(amenity)}
-                onCheckedChange={() => toggleAmenity(amenity)}
-              />
-              <span>{amenityLabels[amenity]}</span>
-            </label>
-          ))}
+
+        <div className="planner-field">
+          <span className="planner-label">Stay style</span>
+          <Select
+            value={trip.vibe || "any"}
+            onValueChange={(value) =>
+              update({ vibe: value === "any" ? "" : value })
+            }
+          >
+            <SelectTrigger id={`${id}-vibe`} className="planner-select">
+              <SelectValue placeholder="Any style" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any style</SelectItem>
+              {[
+                "romantic",
+                "boutique",
+                "design_led",
+                "remote_work",
+                "family_friendly",
+                "quiet",
+                "wellness",
+                "beach",
+                "nightlife",
+                "cultural",
+              ].map((vibe) => (
+                <SelectItem key={vibe} value={vibe}>
+                  {vibeLabels[vibe]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </fieldset>
-      <Button type="submit" disabled={busy} className="find-button">
-        {busy ? "Finding your stays…" : "Find my stays"}
-        <ArrowRight size={17} />
-      </Button>
-      <p className="form-note">Thoughtful matches, with the trade-offs too.</p>
+
+        <div className="planner-field planner-must-haves">
+          <span className="planner-label">Must-haves</span>
+          <details className="planner-popover">
+            <summary className="planner-summary">
+              {selectedAmenities.length
+                ? selectedAmenities.join(" · ")
+                : "Choose"}
+              <ChevronDown size={14} />
+            </summary>
+            <div className="planner-options">
+              {amenityChoices.map((amenity) => (
+                <label className="planner-option" key={amenity}>
+                  <Checkbox
+                    checked={trip.amenities.includes(amenity)}
+                    onCheckedChange={() => toggleAmenity(amenity)}
+                  />
+                  <span>
+                    {amenityLabels[amenity] ||
+                      amenity.replaceAll("_", " ")}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
+      </div>
+
+      )}
+      {variant !== "controls" && (
+      <div className="trip-planner-search">
+        <label className="sr-only" htmlFor={`${id}-prompt`}>
+          Describe your stay
+        </label>
+        <textarea
+          id={`${id}-prompt`}
+          value={trip.query}
+          onChange={(event) => update({ query: event.target.value })}
+          placeholder="Describe your stay… e.g. a design hotel in Tokyo with great breakfast"
+          rows={2}
+          maxLength={600}
+        />
+        <Button type="submit" disabled={busy}>
+          {busy ? "Finding stays…" : "Find stays"}
+          <ArrowRight size={17} />
+        </Button>
+      </div>
+
+      )}
+      <details className="planner-more">
+        <summary>More trip details</summary>
+        <div className="planner-more-content">
+          <div className="planner-field">
+            <span className="planner-label">Traveling as</span>
+            <Select
+              value={trip.party || "any"}
+              onValueChange={(value) =>
+                update({ party: value === "any" ? "" : value })
+              }
+            >
+              <SelectTrigger className="planner-select">
+                <SelectValue placeholder="Anyone" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Anyone</SelectItem>
+                <SelectItem value="solo">Solo</SelectItem>
+                <SelectItem value="couple">Couple</SelectItem>
+                <SelectItem value="family">Family</SelectItem>
+                <SelectItem value="business">Business</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </details>
     </form>
   );
 }
 
-function BookingButton({
-  hotel,
-  compact = false,
-  onOpen,
-}: {
-  hotel: Hotel;
-  compact?: boolean;
-  onOpen: (hotel: Hotel) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={
-        compact ? "booking-button booking-button-compact" : "booking-button"
-      }
-      onClick={() => onOpen(hotel)}
-      aria-label={`Check rates and book in ${hotel.city}`}
-    >
-      Check rates &amp; book <ArrowUpRight size={17} />
-    </button>
-  );
+function BookingButton({ hotel, compact = false, onOpen }: { hotel: Hotel; compact?: boolean; onOpen: (hotel: Hotel) => void }) {
+  return <button type="button" className={compact ? "booking-button booking-button-compact" : "booking-button"} onClick={() => onOpen(hotel)} aria-label={`Check rates and book in ${hotel.city}`}>Check rates &amp; book <ArrowUpRight size={17} /></button>;
 }
 
 function TripUnderstanding({
@@ -568,14 +689,45 @@ function TripUnderstanding({
 }: {
   trip: TripRequest;
   interpreted: InterpretedTrip;
-  onRemove: (kind: "destination" | "party" | "vibe" | "budget" | "amenity", value?: string) => void;
+  onRemove: (
+    kind: "destination" | "party" | "vibe" | "budget" | "amenity" | "room-size",
+    value?: string,
+  ) => void;
   onApply: () => void;
   busy: boolean;
 }) {
-  const requirementTags: { label: string; kind: "destination" | "budget" | "amenity"; value?: string }[] = [];
+  const requirementTags: {
+    label: string;
+    kind: "destination" | "party" | "budget" | "room-size" | "amenity";
+    value?: string;
+  }[] = [];
   const preferenceTags: { label: string; kind: "party" | "vibe" | "amenity"; value?: string }[] = [];
 
-  if (interpreted.destination) requirementTags.push({ label: interpreted.destination, kind: "destination" });
+  if (interpreted.destination) {
+    requirementTags.push({
+      label: interpreted.destination,
+      kind: "destination",
+    });
+  }
+
+  if (interpreted.party) {
+    const partyLabel =
+      interpreted.party === "couple"
+        ? "2 people"
+        : interpreted.party === "family"
+          ? "Family"
+          : interpreted.party === "business"
+            ? "Business trip"
+            : interpreted.party === "solo"
+              ? "1 person"
+              : interpreted.party;
+
+    requirementTags.push({
+      label: partyLabel,
+      kind: "party",
+    });
+  }
+
   if (interpreted.maxPrice !== null) {
     requirementTags.push({
       label: `Up to $${interpreted.maxPrice}/night`,
@@ -587,8 +739,20 @@ function TripUnderstanding({
       kind: "budget",
     });
   }
+
+  if (interpreted.minRoomSizeSqm !== null) {
+    requirementTags.push({
+      label: `Room ≥ ${interpreted.minRoomSizeSqm} sqm`,
+      kind: "room-size",
+    });
+  }
+
   for (const amenity of interpreted.requiredAmenities) {
-    requirementTags.push({ label: amenityLabels[amenity] || amenity, kind: "amenity", value: amenity });
+    requirementTags.push({
+      label: amenityLabels[amenity] || amenity,
+      kind: "amenity",
+      value: amenity,
+    });
   }
   for (const amenity of interpreted.preferredAmenities) {
     preferenceTags.push({ label: amenityLabels[amenity] || amenity, kind: "amenity", value: amenity });
@@ -615,10 +779,6 @@ function TripUnderstanding({
       value: signal,
     });
   }
-  if (interpreted.party) preferenceTags.push({
-    label: interpreted.party === "couple" ? "Couple's trip" : interpreted.party === "family" ? "Family trip" : interpreted.party === "business" ? "Work trip" : interpreted.party === "solo" ? "Solo trip" : interpreted.party,
-    kind: "party",
-  });
   if (interpreted.vibe) preferenceTags.push({ label: vibeLabels[interpreted.vibe] || interpreted.vibe, kind: "vibe" });
 
   const avoidLabels: Record<string, string> = {
@@ -648,8 +808,8 @@ function TripUnderstanding({
       <div className="trip-understanding-head">
         <div>
           <span className="eyebrow"><Sparkles size={12} /> INDICE UNDERSTANDS</span>
-          <h2 id="trip-understanding-title">Your trip, translated.</h2>
-          <p>We turned your description into the details we use to find and rank stays.</p>
+          <h2 id="trip-understanding-title">Here’s what we understood.</h2>
+          <p>We’ll use these requirements and preferences to find and rank stays.</p>
         </div>
         <span className="trip-understanding-query">{trip.query.trim() || "Your selected preferences"}</span>
       </div>
@@ -692,7 +852,7 @@ function TripUnderstanding({
         )}
       </div>
       <div className="trip-understanding-footer">
-        <span>Change a tag if Indice misunderstood something, then update your matches.</span>
+        <span>Remove anything Indice misunderstood, then update your matches.</span>
         <Button type="button" size="sm" onClick={onApply} disabled={busy}>
           {busy ? "Updating…" : "Update matches"} <ArrowRight size={14} />
         </Button>
@@ -724,6 +884,9 @@ function HotelCard({
   onGallery,
   onMap,
   onBook,
+  compareSelected,
+  compareDisabled,
+  onCompare,
 }: {
   match: Match;
   index: number;
@@ -731,6 +894,9 @@ function HotelCard({
   onGallery: (detail: { hotel: Hotel; match?: Match }) => void;
   onMap: (id: string) => void;
   onBook: (hotel: Hotel) => void;
+  compareSelected: boolean;
+  compareDisabled: boolean;
+  onCompare: (hotelId: string) => void;
 }) {
   const { hotel } = match;
   return (
@@ -790,52 +956,26 @@ function HotelCard({
           </p>
           <p>{match.why_it_matches}</p>
 
-              {match.evidence?.some((item) => item.type === "match") && (
-                <div className="match-evidence">
-                  {match.evidence
-                    .filter((item) => item.type === "match")
-                    .map((item, i) => (
-                      <span
-                        key={`match-${i}`}
-                        className="match-evidence-positive"
-                        title={item.detail}
-                      >
-                        <span className="evidence-check">✓</span>
-                        {item.label}
-                      </span>
-                    ))}
-                </div>
-              )}
-
-              {match.evidence?.some((item) => item.type !== "match") && (
-                <>
-                  <p className="know-label">REALITY CHECK</p>
-                  <div className="match-evidence match-evidence-reality">
-                    {match.evidence
-                      .filter((item) => item.type !== "match")
-                      .map((item, i) => (
-                        <span
-                          key={`tradeoff-${i}`}
-                          className="match-evidence-warning"
-                          title={item.detail}
-                        >
-                          <span className="evidence-warning">!</span>
-                          <strong>{item.label}</strong>
-                          <span>{item.detail}</span>
-                        </span>
-                      ))}
-                  </div>
-                </>
-              )}
           <p className="know-label">GOOD TO KNOW</p>
           <p className="know-copy">{match.things_to_know}</p>
         </div>
         <div className="card-bottom">
           <div className="price-block">
             <strong>{price(hotel.estimated_price_per_night)}</strong>
-            <span>estimated / night</span>
+            <span>{match.liveRate ? "live rate" : "estimated / night"}</span>
           </div>
-          <BookingButton hotel={hotel} onOpen={onBook} />
+          <div className="card-actions">
+            <button
+              type="button"
+              className={`compare-button${compareSelected ? " is-selected" : ""}`}
+              onClick={() => onCompare(hotel.id)}
+              disabled={compareDisabled}
+              aria-pressed={compareSelected}
+            >
+              {compareSelected ? "Comparing" : "Compare"}
+            </button>
+            <BookingButton hotel={hotel} onOpen={onBook} />
+          </div>
         </div>
       </div>
     </article>
@@ -848,7 +988,7 @@ export function DiscoveryApp({
   catalogError,
 }: {
   initialMatches: Match[];
-  source: "supabase" | "demo";
+  source: "supabase" | "demo" | "provider";
   catalogError?: string;
 }) {
   const [trip, setTrip] = useState<TripRequest>(blankTrip);
@@ -862,6 +1002,17 @@ export function DiscoveryApp({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialMatches[0]?.hotel.id || null,
   );
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const toggleCompare = useCallback((hotelId: string) => {
+    setCompareIds((current) => {
+      if (current.includes(hotelId)) {
+        return current.filter((id) => id !== hotelId);
+      }
+      if (current.length >= 2) return current;
+      return [...current, hotelId];
+    });
+  }, []);
   const [detail, setDetail] = useState<{ hotel: Hotel; match?: Match } | null>(
     null,
   );
@@ -878,6 +1029,7 @@ export function DiscoveryApp({
   const [error, setError] = useState(catalogError || "");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [recentTrips, setRecentTrips] = useState<SavedTrip[]>([]);
+  const [showAllRecentTrips, setShowAllRecentTrips] = useState(false);
   const [savedTripNotice, setSavedTripNotice] = useState(false);
   const [interpretedTrip, setInterpretedTrip] = useState<InterpretedTrip | null>(null);
 
@@ -885,7 +1037,9 @@ export function DiscoveryApp({
   // prevents touch/page scrolling from making dialogs and sheets appear to
   // move with the underlying document, especially on iOS Safari.
   useEffect(() => {
-    const overlayOpen = Boolean(detail || bookingHotel || filtersOpen || askOpen);
+    const overlayOpen = Boolean(
+    detail || bookingHotel || filtersOpen || askOpen || compareOpen,
+  );
     if (!overlayOpen) return;
 
     const html = document.documentElement;
@@ -925,9 +1079,107 @@ export function DiscoveryApp({
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(RECENT_TRIPS_KEY);
-      if (!raw) return;
+
+      if (!raw) {
+        const restoredTrips: SavedTrip[] = [
+          {
+            id: "restored-tokyo-room",
+            createdAt: Date.now() - 6000,
+            trip: {
+              destination: "Tokyo",
+              party: "2 people",
+              vibe: "",
+              budget: "Any",
+              amenities: ["fast_wifi"],
+              query: "A hotel in Tokyo for two, under $350, with a spacious room and fast Wi-Fi",
+              maxPrice: 350,
+              minRoomSizeSqm: 30,
+            },
+          },
+          {
+            id: "restored-tokyo-wifi",
+            createdAt: Date.now() - 5000,
+            trip: {
+              destination: "Tokyo",
+              party: "2 people",
+              vibe: "",
+              budget: "Any",
+              amenities: ["fast_wifi"],
+              query: "A hotel in Tokyo for two, under $350 with fast Wi-Fi",
+              maxPrice: 350,
+              minRoomSizeSqm: null,
+            },
+          },
+          {
+            id: "restored-tokyo-room-2",
+            createdAt: Date.now() - 4000,
+            trip: {
+              destination: "Tokyo",
+              party: "2 people",
+              vibe: "",
+              budget: "Any",
+              amenities: ["fast_wifi"],
+              query: "A hotel in Tokyo for two, under $350 with a room of at least 30 sqm",
+              maxPrice: 350,
+              minRoomSizeSqm: 30,
+            },
+          },
+          {
+            id: "restored-lagos",
+            createdAt: Date.now() - 3000,
+            trip: {
+              destination: "Lagos",
+              party: "",
+              vibe: "",
+              budget: "Any",
+              amenities: ["fast_wifi"],
+              query: "A hotel in Lagos with fast Wi-Fi",
+              maxPrice: null,
+              minRoomSizeSqm: null,
+            },
+          },
+          {
+            id: "restored-tokyo-quiet",
+            createdAt: Date.now() - 2000,
+            trip: {
+              destination: "Tokyo",
+              party: "",
+              vibe: "quiet",
+              budget: "Any",
+              amenities: [],
+              query: "A quiet hotel in Tokyo",
+              maxPrice: null,
+              minRoomSizeSqm: null,
+            },
+          },
+          {
+            id: "restored-new-york-solo",
+            createdAt: Date.now() - 1000,
+            trip: {
+              destination: "New York",
+              party: "solo",
+              vibe: "",
+              budget: "Budget",
+              amenities: [],
+              query: "A budget hotel in New York for a solo trip",
+              maxPrice: null,
+              minRoomSizeSqm: null,
+            },
+          },
+        ];
+
+        window.localStorage.setItem(
+          RECENT_TRIPS_KEY,
+          JSON.stringify(restoredTrips),
+        );
+        setRecentTrips(restoredTrips);
+        return;
+      }
+
       const parsed = JSON.parse(raw) as SavedTrip[];
-      if (Array.isArray(parsed)) setRecentTrips(parsed.slice(0, MAX_RECENT_TRIPS));
+      if (Array.isArray(parsed)) {
+        setRecentTrips(parsed.slice(0, MAX_RECENT_TRIPS));
+      }
     } catch {
       window.localStorage.removeItem(RECENT_TRIPS_KEY);
     }
@@ -1118,45 +1370,50 @@ export function DiscoveryApp({
     return () => lifecycle.abort();
   }, []);
 
-  const updateInterpretedTrip = useCallback((kind: "destination" | "party" | "vibe" | "budget" | "amenity", value?: string) => {
+  const updateInterpretedTrip = useCallback((
+    kind: "destination" | "party" | "vibe" | "budget" | "amenity" | "room-size",
+    value?: string,
+  ) => {
     setTrip((current) => {
-      if (kind === "amenity" && value) return { ...current, amenities: current.amenities.filter((item) => item !== value) };
+      if (kind === "amenity" && value) {
+        return { ...current, amenities: current.amenities.filter((item) => item !== value) };
+      }
       if (kind === "destination") return { ...current, destination: "" };
       if (kind === "party") return { ...current, party: "" };
       if (kind === "vibe") return { ...current, vibe: "" };
       if (kind === "budget") return { ...current, budget: "Any" };
       return current;
     });
+
     setInterpretedTrip((current) => {
       if (!current) return current;
-      if (kind === "amenity" && value) return { ...current, amenities: current.amenities.filter((item) => item !== value) };
+      if (kind === "amenity" && value) {
+        return { ...current, amenities: current.amenities.filter((item) => item !== value) };
+      }
       if (kind === "destination") return { ...current, destination: "" };
       if (kind === "party") return { ...current, party: "" };
       if (kind === "vibe") return { ...current, vibe: "" };
       if (kind === "budget") return { ...current, budget: "Any", maxPrice: null };
+      if (kind === "room-size") return { ...current, minRoomSizeSqm: null };
       return current;
     });
   }, []);
 
   const applyInterpretedTrip = useCallback(() => {
     if (!interpretedTrip) return;
-    const hasManualInterpretation =
-      interpretedTrip.destination !== interpretTrip(trip).destination ||
-      interpretedTrip.party !== interpretTrip(trip).party ||
-      interpretedTrip.vibe !== interpretTrip(trip).vibe ||
-      interpretedTrip.budget !== interpretTrip(trip).budget ||
-      interpretedTrip.amenities.join("|") !== interpretTrip(trip).amenities.join("|");
-    const nextTrip = hasManualInterpretation
-      ? {
-          ...trip,
-          destination: interpretedTrip.destination,
-          party: interpretedTrip.party,
-          vibe: interpretedTrip.vibe,
-          budget: interpretedTrip.budget,
-          amenities: interpretedTrip.amenities,
-          query: "",
-        }
-      : trip;
+
+    const nextTrip = {
+      ...trip,
+      destination: interpretedTrip.destination,
+      party: interpretedTrip.party,
+      vibe: interpretedTrip.vibe,
+      budget: interpretedTrip.budget,
+      amenities: interpretedTrip.amenities,
+      maxPrice: interpretedTrip.maxPrice,
+      minRoomSizeSqm: interpretedTrip.minRoomSizeSqm,
+      query: "",
+    };
+
     findStays(nextTrip);
   }, [interpretedTrip, trip]);
 
@@ -1195,9 +1452,14 @@ export function DiscoveryApp({
               Hotel <em>Indice</em>
             </span>
           </Link>
-          <div className="header-middle">
-            <span className="header-line" /> THE ART OF FINDING YOUR STAY{" "}
-            <span className="header-line" />
+          <div className="header-trip-planner">
+            <TripForm
+              trip={trip}
+              setTrip={setTrip}
+              onSubmit={() => findStays(trip)}
+              busy={busy}
+              variant="controls"
+            />
           </div>
           <div className="header-actions">
             <button
@@ -1241,49 +1503,16 @@ export function DiscoveryApp({
       </header>
 
       <div className="workspace">
-        <aside className="filters-sidebar">
-          <TripForm
-            trip={trip}
-            setTrip={setTrip}
-            onSubmit={() => findStays(trip)}
-            busy={busy}
-          />
-        </aside>
         <main className="results-area">
-          <div className="results-intro">
-            <div className="intro-copy">
-              <div className="intro-eyebrow">
-                <span className="intro-dash" /> HOTEL DISCOVERY, REIMAGINED
-              </div>
-              <h1>
-                {searched
-                  ? "Your stay, narrowed down."
-                  : "Find a stay that fits."}
-              </h1>
-              <p>
-                {searched
-                  ? "The places below align with your trip. Here’s what makes each one worth considering."
-                  : "Describe what you have in mind, or choose a few details. We’ll handle the shortlist."}
-              </p>
-            </div>
-            <div className="intro-stamp">
-              <Compass size={25} strokeWidth={1.4} />
-              <span>
-                GOOD PLACES.
-                <br />
-                BETTER MATCHES.
-              </span>
-            </div>
-          </div>
-          {searched && interpretedTrip && (
-            <TripUnderstanding
+          <div className="home-trip-planner">
+            <TripForm
               trip={trip}
-              interpreted={interpretedTrip}
-              onRemove={updateInterpretedTrip}
-              onApply={applyInterpretedTrip}
+              setTrip={setTrip}
+              onSubmit={() => findStays(trip)}
               busy={busy}
+              variant="search"
             />
-          )}
+          </div>
           {!searched && recentTrips.length > 0 && (
             <section className="recent-trips" aria-labelledby="recent-trips-title">
               <div className="recent-trips-heading">
@@ -1293,8 +1522,9 @@ export function DiscoveryApp({
                 </div>
                 <span className="recent-trips-note">Saved on this device</span>
               </div>
+
               <div className="recent-trips-list">
-                {recentTrips.map((saved) => (
+                {recentTrips.slice(0, 6).map((saved) => (
                   <button
                     key={saved.id}
                     type="button"
@@ -1309,6 +1539,7 @@ export function DiscoveryApp({
                   </button>
                 ))}
               </div>
+
             </section>
           )}
           {searched && savedTripNotice && (
@@ -1320,22 +1551,50 @@ export function DiscoveryApp({
           <div className="results-toolbar">
             <div>
               <span className="eyebrow results-kicker">
-                {searched ? "YOUR SHORTLIST" : "THE GLOBAL EDIT"}
+                {searched ? "YOUR MATCHES" : "THE GLOBAL EDIT"}
               </span>
               <h2>
                 {matches.length
                   ? searched
-                    ? `${total} matching stay${total === 1 ? "" : "s"}`
+                    ? `${total} stay${total === 1 ? "" : "s"} match your trip`
                     : "Explore the collection"
                   : "No stays to show"}
               </h2>
-              <p className="results-meta">
-                {currentSource === "demo"
-                  ? "Illustrative properties and nightly estimates"
-                  : "Curated hotel catalog and nightly estimates"}
-                {enhanced ? " · AI refined" : " · Preference matched"}
-              </p>
+              {searched ? (
+                <div className="results-understanding">
+                  <p className="results-meta">
+                    {[
+                      trip.destination,
+                      trip.party,
+                      trip.budget !== "Any" ? trip.budget : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  {trip.amenities.length > 0 && (
+                    <div className="results-priorities">
+                      <span className="results-priorities-label">
+                        Your priorities
+                      </span>
+                      {trip.amenities.map((amenity) => (
+                        <span className="results-priority" key={amenity}>
+                          {amenityLabels[amenity] || amenity.replaceAll("_", " ")}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="results-meta">
+                  {currentSource === "demo"
+                    ? "Illustrative properties and nightly estimates"
+                    : "Curated hotel catalog and nightly estimates"}
+                  {enhanced ? " · AI refined" : " · Preference matched"}
+                </p>
+              )}
             </div>
+
+
             <button
               type="button"
               className="view-toggle-single"
@@ -1370,7 +1629,152 @@ export function DiscoveryApp({
               </button>
             </div>
           )}
-          <Tabs
+            {compareIds.length === 2 && (
+              <div className="compare-tray">
+                <div className="compare-tray-copy">
+                  <strong>2 stays selected</strong>
+                  <span>
+                    {compareIds
+                      .map((id) => matches.find((match) => match.hotel.id === id)?.hotel.name)
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </div>
+                <Button type="button" size="sm" onClick={() => setCompareOpen(true)}>
+                  Compare stays <ArrowRight size={14} />
+                </Button>
+              </div>
+            )}
+          {searched ? (
+            <section className="results-workspace">
+              <div className="results-workspace-header">
+                <div>
+                  <span className="eyebrow">YOUR STAY OPTIONS</span>
+                  <div className="results-workspace-title">
+                    <strong>{total} stays</strong>
+                    <span>matched to this trip</span>
+                  </div>
+                </div>
+
+                <div className="results-workspace-controls">
+                  <button
+                    type="button"
+                    className="results-control"
+                    onClick={() => setFiltersOpen(true)}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                  </button>
+                </div>
+              </div>
+
+              <div className={`results-workspace-body${view === "map" ? " show-map" : " show-list"}`} data-view={view}>
+                <section className="results-stays-column">
+                  {matches.length ? (
+                    <div className="hotel-grid">
+                      {matches.map((match, index) => (
+                        <HotelCard
+                          key={match.hotel.id}
+                          match={match}
+                          index={index}
+                          price={formatPrice}
+                          onGallery={openDetail}
+                          onMap={showOnMap}
+                          onBook={setBookingHotel}
+                          compareSelected={compareIds.includes(match.hotel.id)}
+                          compareDisabled={
+                            compareIds.length >= 2 &&
+                            !compareIds.includes(match.hotel.id)
+                          }
+                          onCompare={toggleCompare}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-results">
+                      <Search size={32} />
+                      <h3>Nothing quite fits yet.</h3>
+                      <p>
+                        Try a wider budget or remove a must-have. A different
+                        destination may open up more options.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setTrip(blankTrip);
+                          findStays(blankTrip);
+                        }}
+                      >
+                        Clear trip details
+                      </Button>
+                    </div>
+                  )}
+                </section>
+
+                <aside className={`results-map-column${view === "map" ? " is-mobile-visible" : ""}`}>
+                  <div className="results-map-frame">
+                    <MapView
+                      matches={matches}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      formatPrice={formatPrice}
+                    />
+
+                    {selectedMatch && (
+                      <div className="results-map-card">
+                        <button
+                          type="button"
+                          className="results-map-card-image"
+                          onClick={() =>
+                            openDetail({
+                              hotel: selectedMatch.hotel,
+                              match: selectedMatch,
+                            })
+                          }
+                          aria-label={`View ${selectedMatch.hotel.name}`}
+                        >
+                          <img
+                            src={selectedMatch.hotel.image_urls[0]}
+                            alt={selectedMatch.hotel.name}
+                          />
+                        </button>
+
+                        <div className="results-map-card-content">
+                          <div>
+                            <span className="eyebrow">SELECTED STAY</span>
+                            <h3>{selectedMatch.hotel.name}</h3>
+                            <p>
+                              {selectedMatch.hotel.city}, {selectedMatch.hotel.country}
+                            </p>
+                          </div>
+
+                          <div className="results-map-card-price">
+                            <strong>
+                              {formatPrice(selectedMatch.hotel.estimated_price_per_night)}
+                            </strong>
+                            <span>estimated / night</span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            onClick={() =>
+                              openDetail({
+                                hotel: selectedMatch.hotel,
+                                match: selectedMatch,
+                              })
+                            }
+                          >
+                            View stay <ArrowUpRight size={15} />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </aside>
+              </div>
+            </section>
+          ) : (
+            <Tabs
             value={view}
             onValueChange={(value) => setView(value as "list" | "map")}
             className="view-tabs"
@@ -1387,6 +1791,9 @@ export function DiscoveryApp({
                       onGallery={openDetail}
                       onMap={showOnMap}
                       onBook={setBookingHotel}
+                      compareSelected={compareIds.includes(match.hotel.id)}
+                      compareDisabled={compareIds.length >= 2 && !compareIds.includes(match.hotel.id)}
+                      onCompare={toggleCompare}
                     />
                   ))}
                 </div>
@@ -1468,6 +1875,7 @@ export function DiscoveryApp({
               </div>
             </TabsContent>
           </Tabs>
+          )}
           <p className="disclosure">
             Rates are estimates, may differ at checkout, and are shown in
             approximate converted currencies. Photos and hotel profiles in the
@@ -1480,14 +1888,17 @@ export function DiscoveryApp({
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="left" className="filter-sheet">
           <SheetHeader>
-            <SheetTitle>Find your stay</SheetTitle>
+            <SheetTitle>Your trip details</SheetTitle>
             <SheetDescription>Tell us what matters to you.</SheetDescription>
           </SheetHeader>
           <div className="sheet-scroll">
             <TripForm
               trip={trip}
               setTrip={setTrip}
-              onSubmit={() => findStays(trip)}
+              onSubmit={() => {
+                findStays(trip);
+                setFiltersOpen(false);
+              }}
               busy={busy}
             />
           </div>
@@ -1584,6 +1995,187 @@ export function DiscoveryApp({
         onMap={showOnMap}
       />
       <Dialog
+        open={compareOpen}
+        onOpenChange={(open) => {
+          if (!open) setCompareOpen(false);
+        }}
+      >
+        <DialogContent className="compare-dialog">
+          <DialogHeader>
+            <DialogTitle>Compare stays</DialogTitle>
+            <DialogDescription>
+              Compare the details that matter for your trip side by side.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="compare-grid">
+            {compareIds
+              .map((id) => matches.find((match) => match.hotel.id === id))
+              .filter(Boolean)
+              .map((match) => {
+                if (!match) return null;
+
+                const { hotel } = match;
+                const matchedEvidence =
+                  match.evidence?.filter((item) => item.type === "match") ?? [];
+                const realityEvidence =
+                  match.evidence?.filter((item) => item.type !== "match") ?? [];
+                const roomEvidence =
+                  match.evidence?.find(
+                    (item) =>
+                      item.type === "match" &&
+                      item.label.toLowerCase().startsWith("room ≥"),
+                  );
+
+                return (
+                  <section className="compare-card" key={hotel.id}>
+                    <div className="compare-card-image">
+                      <img
+                        src={hotel.image_urls[0]}
+                        alt={hotel.name}
+                      />
+                    </div>
+
+                    <div className="compare-card-body">
+                      <div className="compare-card-heading">
+                        <div>
+                          <p className="compare-card-location">
+                            {hotel.city}, {hotel.country}
+                          </p>
+                          <h3>{hotel.name}</h3>
+                        </div>
+                        <span className="compare-card-rating">
+                          {hotel.rating.toFixed(1)}
+                        </span>
+                      </div>
+
+                      <div className="compare-stat-grid">
+                        <div>
+                          <span>Estimated / night</span>
+                          <strong>{formatPrice(hotel.estimated_price_per_night)}</strong>
+                        </div>
+                        <div>
+                          <span>Guest rating</span>
+                          <strong>{hotel.rating.toFixed(1)} / 5</strong>
+                        </div>
+                        <div>
+                          <span>Stay type</span>
+                          <strong>{hotel.price_tier}</strong>
+                        </div>
+                      </div>
+
+                      <div className="compare-section">
+                        <p className="compare-section-label">Room size</p>
+                        {roomEvidence ? (
+                          <div className="compare-room-proof">
+                            <strong>{roomEvidence.label}</strong>
+                            <span>{roomEvidence.detail}</span>
+                          </div>
+                        ) : (
+                          <p className="compare-copy">
+                            No qualifying room-size requirement was verified for this stay.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="compare-section">
+                        <p className="compare-section-label">Amenities</p>
+                        <div className="compare-amenities">
+                          {hotel.amenities.length > 0 ? (
+                            hotel.amenities.slice(0, 6).map((amenity) => (
+                              <span key={amenity}>{amenity}</span>
+                            ))
+                          ) : (
+                            <span>No verified amenities listed</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="compare-section">
+                        <p className="compare-section-label">Why it fits</p>
+                        <p className="compare-copy">
+                          {matchedEvidence
+                            .filter(
+                              (item) =>
+                                !item.label.toLowerCase().startsWith("room ≥"),
+                            )
+                            .map((item) => item.label)
+                            .slice(0, 3)
+                            .join(" · ") || "Matches several parts of your trip."}
+                        </p>
+
+                        {matchedEvidence.length > 0 && (
+                          <div className="compare-evidence-list">
+                            {matchedEvidence
+                              .filter(
+                                (item) =>
+                                  !item.label
+                                    .toLowerCase()
+                                    .startsWith("room ≥"),
+                              )
+                              .slice(0, 3)
+                              .map((item) => (
+                                <div
+                                  className="compare-evidence-item"
+                                  key={`${item.label}-${item.detail}`}
+                                >
+                                  <strong>{item.label}</strong>
+                                  <span>{item.detail}</span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="compare-section">
+                        <p className="compare-section-label">Reality Check</p>
+                        {realityEvidence.length > 0 ? (
+                          <div className="compare-evidence-list reality">
+                            {realityEvidence.slice(0, 4).map((item) => (
+                              <div className="compare-evidence-item" key={`${item.type}-${item.label}-${item.detail}`}>
+                                <strong>{item.label}</strong>
+                                <span>{item.detail}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="compare-evidence-item">
+                            <strong>Available context</strong>
+                            <span>{match.things_to_know}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="compare-actions">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setCompareOpen(false);
+                            setBookingHotel(hotel);
+                          }}
+                        >
+                          Check rates &amp; book <ArrowUpRight size={15} />
+                        </Button>
+                      </div>
+                    </div>
+                  </section>
+                );
+              })}
+          </div>
+
+          <div className="compare-footer">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCompareOpen(false)}
+            >
+              Back to results
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={!!bookingHotel}
         onOpenChange={(open) => {
           if (!open) setBookingHotel(null);
@@ -1593,28 +2185,59 @@ export function DiscoveryApp({
           {bookingHotel && (
             <>
               <DialogHeader>
-                <DialogTitle>Check prices for {bookingHotel.name}</DialogTitle>
+                <DialogTitle>You're ready to check rates</DialogTitle>
                 <DialogDescription>
-                  {bookingHotel.city}, {bookingHotel.country}
+                  Check current prices and availability for {bookingHotel.name}.
                 </DialogDescription>
               </DialogHeader>
-              <div className="booking-options">
-                {partnerLinks(bookingHotel).map((partner) => (
-                  <a
-                    key={partner.label}
-                    className="booking-option"
-                    href={partner.href}
-                    target="_blank"
-                    rel="sponsored noopener noreferrer"
-                    onClick={() => setBookingHotel(null)}
-                  >
-                    {partner.label} <ArrowUpRight size={16} />
-                  </a>
-                ))}
+
+              <div className="booking-handoff">
+                <div className="booking-handoff-summary">
+                  <div>
+                    <p className="booking-handoff-label">Your stay</p>
+                    <strong>{bookingHotel.name}</strong>
+                    <span>
+                      {bookingHotel.city}, {bookingHotel.country}
+                    </span>
+                  </div>
+
+                  <div className="booking-handoff-price">
+                    <span>HotelIndice estimate</span>
+                    <strong>
+                      {formatPrice(bookingHotel.estimated_price_per_night)}
+                    </strong>
+                    <small>per night</small>
+                  </div>
+                </div>
+
+                <div className="booking-handoff-note">
+                  <strong>Check the live rate</strong>
+                  <p>
+                    Prices and availability can change. The booking partner
+                    will show the current rate before you book.
+                  </p>
+                </div>
+
+                <div className="booking-options">
+                  {partnerLinks(bookingHotel).map((partner) => (
+                    <a
+                      key={partner.label}
+                      className="booking-option"
+                      href={partner.href}
+                      target="_blank"
+                      rel="sponsored noopener noreferrer"
+                      onClick={() => setBookingHotel(null)}
+                    >
+                      <span>Continue with {partner.label}</span>
+                      <ArrowUpRight size={16} />
+                    </a>
+                  ))}
+                </div>
               </div>
+
               <p className="booking-disclosure">
                 Some links may earn Hotel Indice a commission. This never
-                affects ratings or rankings.
+                affects how stays are matched or presented.
               </p>
             </>
           )}

@@ -15,6 +15,12 @@ const requestSchema = z.object({
   budget: z.enum(["Any", "Budget", "Mid-range", "Luxury"]).default("Any"),
   amenities: z.array(z.string().max(40)).max(12).default([]),
   query: z.string().max(600).default(""),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  adults: z.number().int().min(1).max(20).optional(),
+  children: z.number().int().min(0).max(20).optional(),
+  maxPrice: z.number().positive().nullable().optional(),
+  minRoomSizeSqm: z.number().positive().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -25,35 +31,56 @@ export async function POST(request: NextRequest) {
     const catalog = await getCatalog();
 
     const hotelIds = catalog.hotels.map((hotel) => hotel.id);
+    const interpretedTrip = interpretTrip(parsed.data);
+
     const provider = getHotelProvider();
 
-    const inventory = await (
-      catalog.source === "supabase"
-        ? (() => {
-            const provider = getHotelProvider();
-
-            if (!provider) {
-              return getHotelInventory(hotelIds);
-            }
-
-            return provider.searchInventory({
-              hotelIds,
-              adults: Number(parsed.data.party) || 2,
-              children: 0,
-              checkIn: "2026-10-10",
-              checkOut: "2026-10-14",
-              currency: "USD",
-            }).then((result) => normalizeProviderInventory(result.hotels));
-          })()
-        : []
+    const hasStayDates = Boolean(
+      parsed.data.checkIn && parsed.data.checkOut,
     );
 
-    const ranked = rankHotels(catalog.hotels, parsed.data, inventory);
+    const providerResult =
+      catalog.source === "supabase" && provider && hasStayDates
+        ? await provider.searchInventory({
+            hotelIds,
+            destination:
+              interpretedTrip.destination || parsed.data.destination,
+            adults: parsed.data.adults || (Number(parsed.data.party) || 2),
+            children: parsed.data.children || 0,
+            checkIn: parsed.data.checkIn!,
+            checkOut: parsed.data.checkOut!,
+            currency: "USD",
+          })
+        : null;
+
+    const inventory = providerResult
+      ? normalizeProviderInventory(providerResult.hotels)
+      : catalog.source === "supabase"
+        ? await getHotelInventory(hotelIds)
+        : [];
+
+    const hotelsForRanking =
+      providerResult?.catalogHotels?.length
+        ? providerResult.catalogHotels
+        : catalog.hotels;
+
+    const ranked = rankHotels(hotelsForRanking, parsed.data, inventory);
     const result = await refineWithAI(ranked, parsed.data);
+
+    const responseResult = providerResult?.catalogHotels?.length
+      ? {
+          ...result,
+          matches: result.matches.map((match) => ({
+            ...match,
+            liveRate: true,
+          })),
+        }
+      : result;
+
     return NextResponse.json({
-      ...result,
+      ...responseResult,
       total: ranked.length,
-      source: catalog.source,
+      source: providerResult?.catalogHotels?.length ? "provider" : catalog.source,
       interpreted: interpretTrip(parsed.data),
     });
   } catch (error) {

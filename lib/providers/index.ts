@@ -1,10 +1,14 @@
 import type { HotelProvider } from "@/lib/providers/types";
 import { fixtureProvider } from "@/lib/providers/fixture";
+import { serpApiProvider } from "@/lib/providers/serpapi";
 
 export function getHotelProvider(): HotelProvider | null {
-  if (process.env.HOTELINDICE_PROVIDER === "fixture") {
-    return fixtureProvider;
+  switch (process.env.HOTELINDICE_PROVIDER) {
+    case "fixture":
+      return fixtureProvider;
+    case "serpapi":
+      return serpApiProvider;
+    default:
+      return null;
   }
-
-  return null;
 }

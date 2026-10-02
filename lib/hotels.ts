@@ -20,7 +20,7 @@ export type Hotel = {
   affiliate_booking_link: string;
 };
 
-export type Catalog = { hotels: Hotel[]; source: "supabase" | "demo" };
+export type Catalog = { hotels: Hotel[]; source: "supabase" | "demo" | "provider" };
 
 export const demoHotels = seedHotels as Hotel[];
 
