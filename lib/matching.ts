@@ -28,6 +28,8 @@ export type Match = {
   why_it_matches: string;
   things_to_know: string;
   score: number;
+  /** share of the trip request this hotel covers, 1 to 99. Missing when the search has no filters. */
+  fit_percent?: number;
   evidence: MatchEvidence[];
   liveRate?: boolean;
 };
@@ -691,6 +693,7 @@ export function rankHotels(
         (vibeFit ? 18 : 0) +
         (partyFit ? 14 : 0) +
         (trip.maxPrice !== null &&
+        hotel.estimated_price_per_night > 0 &&
         hotel.estimated_price_per_night <= trip.maxPrice * 0.8
           ? 6
           : 0) +
@@ -779,7 +782,7 @@ export function rankHotels(
         });
       }
 
-      if (trip.maxPrice !== null) {
+      if (trip.maxPrice !== null && hotel.estimated_price_per_night > 0) {
         matchEvidence.push({
           type: "match",
           label: "Within budget",
@@ -822,11 +825,50 @@ export function rankHotels(
               ? "A stay suited to a family trip"
               : vibeFit
                 ? `A ${vibeLabels[trip.vibe]?.toLowerCase() || "well-matched"} stay`
-                : "A hotel that fits several parts of your trip";
+                : "";
 
-      const why = positiveLabels.length
-        ? `${opening}, with ${positiveLabels.join(", ").toLowerCase()}.`
-        : `${opening}.`;
+      // Only ever say things the hotel's own data supports. Empty means the card hides the block.
+      const labelsText = positiveLabels
+        .filter((label) => !opening.toLowerCase().includes(label.toLowerCase()))
+        .slice(0, 2)
+        .join(" and ")
+        .toLowerCase();
+      const hotelFacts = () => {
+        const amenityNames = hotel.amenities
+          .slice(0, 2)
+          .map((amenity) => (amenityLabels[amenity] || amenity.replaceAll("_", " ")).toLowerCase());
+        const tier = hotel.price_tier ? hotel.price_tier.toLowerCase() : "";
+        if (tier && amenityNames.length) {
+          return `A ${tier} stay in ${hotel.city} with ${amenityNames.join(" and ")}.`;
+        }
+        if (amenityNames.length) {
+          return `A stay in ${hotel.city} with ${amenityNames.join(" and ")}.`;
+        }
+        if (hotel.review_count > 0 && hotel.rating > 0) {
+          return `Rated ${hotel.rating.toFixed(1)} from ${hotel.review_count} reviews.`;
+        }
+        return "";
+      };
+
+      const why = opening
+        ? labelsText
+          ? `${opening} with ${labelsText}.`
+          : `${opening}.`
+        : labelsText
+          ? `Fits your search on ${labelsText}.`
+          : hotelFacts();
+
+      const maxScore =
+        requiredMatches * 40 +
+        (trip.preferredAmenities.length + trip.preferredSignals.length) * 14 +
+        (trip.vibe ? 18 : 0) +
+        (trip.party ? 14 : 0) +
+        (trip.maxPrice !== null ? 6 : 0) +
+        15;
+      const fit_percent =
+        maxScore > 15
+          ? Math.max(1, Math.min(99, Math.round((score / maxScore) * 100)))
+          : undefined;
 
       const tradeoffs = matchEvidence
         .filter((item) => item.type !== "match")
@@ -841,6 +883,7 @@ export function rankHotels(
       return {
         hotel,
         score,
+        fit_percent,
         why_it_matches: why,
         things_to_know: caveat,
         evidence: matchEvidence,
@@ -849,8 +892,8 @@ export function rankHotels(
     .sort(
       (a, b) =>
         b.score - a.score ||
-        a.hotel.estimated_price_per_night -
-          b.hotel.estimated_price_per_night,
+        (a.hotel.estimated_price_per_night || Number.MAX_SAFE_INTEGER) -
+          (b.hotel.estimated_price_per_night || Number.MAX_SAFE_INTEGER),
     );
 }
 

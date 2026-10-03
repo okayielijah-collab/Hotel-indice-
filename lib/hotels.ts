@@ -43,7 +43,7 @@ export async function getCatalog(): Promise<Catalog> {
 }
 
 export const amenityLabels: Record<string, string> = {
-  fast_wifi: "Fast Wi-Fi",
+  fast_wifi: "Fast wifi",
   breakfast: "Breakfast",
   pool: "Pool",
   spa: "Spa",

@@ -76,9 +76,9 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
         const marker = L.marker([hotel.latitude, hotel.longitude], { icon, keyboard: false }).addTo(map.current!);
         const pin = marker.getElement()?.querySelector("button");
         if (pin) {
-          pin.querySelector(".hotel-pin-price")!.textContent = formatPrice(hotel.estimated_price_per_night);
+          pin.querySelector(".hotel-pin-price")!.textContent = hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "See rate";
           pin.querySelector(".hotel-pin-rating")!.textContent = `★ ${hotel.rating.toFixed(1)}`;
-          pin.setAttribute("aria-label", `${hotel.name}, ${formatPrice(hotel.estimated_price_per_night)} per night, rated ${hotel.rating.toFixed(1)}`);
+          pin.setAttribute("aria-label", `${hotel.name}, ${hotel.estimated_price_per_night > 0 ? `${formatPrice(hotel.estimated_price_per_night)} per night` : "rate not shown"}, rated ${hotel.rating.toFixed(1)}`);
           pin.classList.toggle("hotel-pin-selected", hotel.id === selectedIdRef.current);
           pin.addEventListener("click", () => onSelectRef.current(hotel.id));
         }

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -145,54 +146,75 @@ function agodaSearchLink(hotel: Hotel): string {
   return url.toString();
 }
 
+function cleanSnippet(text: string, max = 40): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const at = cut.lastIndexOf(" ");
+  return cut.slice(0, at > 15 ? at : max).replace(/[\s,.;:!-]+$/, "") + "…";
+}
+
 function tripTitle(trip: TripRequest): string {
   const interpreted = interpretTrip(trip);
-  const destination = interpreted.destination || "Your next stay";
-  const purpose = interpreted.party === "couple"
-    ? "Couple's trip"
-    : interpreted.party === "family"
-      ? "Family trip"
-      : interpreted.party === "business"
-        ? "Work trip"
-        : interpreted.party === "solo"
-          ? "Solo trip"
-          : interpreted.vibe
-            ? vibeLabels[interpreted.vibe] || "Trip"
-            : "Hotel search";
-  return `${destination} · ${purpose}`;
+  const place = interpreted.destination || "Anywhere";
+  const who =
+    interpreted.party === "couple"
+      ? "couple's trip"
+      : interpreted.party === "family"
+        ? "family trip"
+        : interpreted.party === "business"
+          ? "work trip"
+          : interpreted.party === "solo"
+            ? "solo trip"
+            : "";
+  const style =
+    interpreted.vibe && vibeLabels[interpreted.vibe]
+      ? `${vibeLabels[interpreted.vibe].toLowerCase()} stay`
+      : "";
+  const firstAmenity = interpreted.amenities[0]
+    ? `with ${(amenityLabels[interpreted.amenities[0]] || interpreted.amenities[0].replaceAll("_", " ")).toLowerCase()}`
+    : "";
+  return `${place} ${who || style || firstAmenity || "stay"}`;
 }
 
 function tripSummary(trip: TripRequest): string {
   const interpreted = interpretTrip(trip);
-  const tags: string[] = [];
-
-  if (interpreted.party) {
-    tags.push(interpreted.party);
-  }
+  const parts: string[] = [];
 
   if (interpreted.maxPrice) {
-    tags.push(`Up to $${interpreted.maxPrice}/night`);
+    parts.push(`under $${interpreted.maxPrice} a night`);
   } else if (interpreted.budget !== "Any") {
-    tags.push(interpreted.budget);
+    parts.push(interpreted.budget.toLowerCase());
   }
 
   if (interpreted.minRoomSizeSqm) {
-    tags.push(`Room ≥ ${interpreted.minRoomSizeSqm} sqm`);
+    parts.push(`rooms over ${interpreted.minRoomSizeSqm} sqm`);
   }
 
   if (interpreted.amenities.length) {
-    tags.push(
-      ...interpreted.amenities
-        .slice(0, 2)
-        .map((amenity) => amenityLabels[amenity] || amenity),
-    );
+    const names = interpreted.amenities
+      .slice(0, 2)
+      .map((amenity) =>
+        (amenityLabels[amenity] || amenity.replaceAll("_", " ")).toLowerCase(),
+      );
+    parts.push(`with ${names.join(" and ")}`);
   }
 
-  if (!tags.length && interpreted.vibe && vibeLabels[interpreted.vibe]) {
-    tags.push(vibeLabels[interpreted.vibe]);
+  if (!parts.length && trip.query.trim()) {
+    parts.push(cleanSnippet(trip.query));
   }
 
-  return tags.slice(0, 3).join(" · ") || trip.query.trim() || "Personalized hotel search";
+  return parts.join(" ") || "Saved search";
+}
+
+function dedupeTrips(list: SavedTrip[]): SavedTrip[] {
+  const seen = new Set<string>();
+  return list.filter((item) => {
+    const key = `${tripTitle(item.trip)}|${tripSummary(item.trip)}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function partnerLinks(hotel: Hotel): { label: string; href: string }[] {
@@ -408,6 +430,247 @@ function HotelDetailDialog({
   );
 }
 
+function nextDayISO(value: string): string {
+  if (!value) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function Stepper({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="hbar-stepper">
+      <span>{label}</span>
+      <div>
+        <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= min} onClick={() => onChange(value - 1)}>
+          −
+        </button>
+        <strong aria-live="polite">{value}</strong>
+        <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(value + 1)}>
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Header search bar: destination, dates, guests, a filters panel and one Search button. */
+function HeaderSearch({
+  trip,
+  setTrip,
+  onSubmit,
+  busy,
+}: {
+  trip: TripRequest;
+  setTrip: (trip: TripRequest) => void;
+  onSubmit: () => void;
+  busy: boolean;
+}) {
+  const id = useId();
+  const [open, setOpen] = useState<"guests" | "more" | null>(null);
+  const update = (changes: Partial<TripRequest>) => setTrip({ ...trip, ...changes });
+
+  const adults = trip.adults || 2;
+  const children = trip.children || 0;
+  const guestText = `${adults} adult${adults === 1 ? "" : "s"}${
+    children ? ` and ${children} ${children === 1 ? "child" : "children"}` : ""
+  }`;
+  const moreCount =
+    (trip.budget && trip.budget !== "Any" ? 1 : 0) +
+    (trip.vibe ? 1 : 0) +
+    trip.amenities.length;
+
+  // Check out can never be on or before check in.
+  useEffect(() => {
+    if (trip.checkIn && (!trip.checkOut || trip.checkOut <= trip.checkIn)) {
+      setTrip({ ...trip, checkOut: nextDayISO(trip.checkIn) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip.checkIn, trip.checkOut]);
+
+  // Click outside or Escape closes a panel (but not while picking inside a select list).
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[role="listbox"], [data-radix-popper-content-wrapper], [data-slot="select-content"]')) return;
+      if (!target?.closest(".hbar-pop")) setOpen(null);
+    };
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, []);
+
+  return (
+    <form
+      className="hbar"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setOpen(null);
+        onSubmit();
+      }}
+    >
+      <div className="hbar-field hbar-dest">
+        <label className="hbar-label" htmlFor={`${id}-dest`}>Where to</label>
+        <input
+          id={`${id}-dest`}
+          type="text"
+          className="hbar-text"
+          list={`${id}-cities`}
+          value={trip.destination || ""}
+          placeholder="Anywhere"
+          autoComplete="off"
+          maxLength={100}
+          onChange={(event) => update({ destination: event.target.value })}
+          onBlur={(event) => {
+            const typed = event.target.value.trim();
+            const known = cities.find((city) => city.toLowerCase() === typed.toLowerCase());
+            if ((known || typed) !== trip.destination) update({ destination: known || typed });
+          }}
+        />
+        <datalist id={`${id}-cities`}>
+          {cities.map((city) => (
+            <option key={city} value={city} />
+          ))}
+        </datalist>
+      </div>
+
+      <div className="hbar-field hbar-dates">
+        <span className="hbar-label">Dates</span>
+        <div className="hbar-date-pair">
+          <input
+            type="date"
+            className="hbar-date-input"
+            aria-label="Check in date"
+            data-empty={trip.checkIn ? "false" : "true"}
+            value={trip.checkIn || ""}
+            onChange={(event) => update({ checkIn: event.target.value, checkOut: nextDayISO(event.target.value) })}
+          />
+          <span aria-hidden="true">to</span>
+          <input
+            type="date"
+            className="hbar-date-input"
+            aria-label="Check out date"
+            data-empty={trip.checkOut ? "false" : "true"}
+            value={trip.checkOut || ""}
+            min={nextDayISO(trip.checkIn) || undefined}
+            onChange={(event) => update({ checkOut: event.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className={`hbar-field hbar-pop hbar-guests${open === "guests" ? " is-open" : ""}`}>
+        <button
+          type="button"
+          className="hbar-trigger"
+          aria-expanded={open === "guests"}
+          onClick={() => setOpen(open === "guests" ? null : "guests")}
+        >
+          <span className="hbar-label">Guests</span>
+          <span className="hbar-value">{guestText}</span>
+        </button>
+        {open === "guests" && (
+          <div className="hbar-panel">
+            <Stepper label="Adults" value={adults} min={1} max={10} onChange={(value) => update({ adults: value })} />
+            <Stepper label="Children" value={children} min={0} max={6} onChange={(value) => update({ children: value })} />
+            <button type="button" className="hbar-done" onClick={() => setOpen(null)}>Done</button>
+          </div>
+        )}
+      </div>
+
+      <div className={`hbar-field hbar-pop hbar-more${open === "more" ? " is-open" : ""}`}>
+        <button
+          type="button"
+          className="hbar-trigger"
+          aria-expanded={open === "more"}
+          onClick={() => setOpen(open === "more" ? null : "more")}
+        >
+          <SlidersHorizontal size={16} />
+          <span className="hbar-value">More filters</span>
+          {moreCount > 0 ? <span className="hbar-count">{moreCount}</span> : null}
+        </button>
+        {open === "more" && (
+          <div className="hbar-panel hbar-panel-wide">
+            <div className="hbar-panel-field">
+              <label className="hbar-label" htmlFor={`${id}-budget`}>Budget</label>
+              <Select value={trip.budget} onValueChange={(value) => update({ budget: value as TripRequest["budget"] })}>
+                <SelectTrigger id={`${id}-budget`} className="hbar-select hbar-select-boxed">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Any", "Budget", "Mid-range", "Luxury"].map((tier) => (
+                    <SelectItem key={tier} value={tier}>
+                      {tier}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="hbar-panel-field">
+              <label className="hbar-label" htmlFor={`${id}-vibe`}>Stay style</label>
+              <Select value={trip.vibe || "any"} onValueChange={(value) => update({ vibe: value === "any" ? "" : value })}>
+                <SelectTrigger id={`${id}-vibe`} className="hbar-select hbar-select-boxed">
+                  <SelectValue>{trip.vibe ? vibeLabels[trip.vibe] || trip.vibe : "Any style"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any style</SelectItem>
+                  {["romantic", "boutique", "design_led", "remote_work", "family_friendly", "quiet", "wellness", "beach", "nightlife", "cultural"].map((vibe) => (
+                    <SelectItem key={vibe} value={vibe}>
+                      {vibeLabels[vibe]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="hbar-panel-field hbar-span">
+              <span className="hbar-label">Must haves</span>
+              <div className="hbar-checks">
+                {amenityChoices.map((amenity) => (
+                  <label className="hbar-check" key={amenity}>
+                    <Checkbox
+                      checked={trip.amenities.includes(amenity)}
+                      onCheckedChange={() =>
+                        update({
+                          amenities: trip.amenities.includes(amenity)
+                            ? trip.amenities.filter((item) => item !== amenity)
+                            : [...trip.amenities, amenity],
+                        })
+                      }
+                    />
+                    <span>{amenityLabels[amenity] || amenity.replaceAll("_", " ")}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="hbar-done hbar-span" onClick={() => setOpen(null)}>Done</button>
+          </div>
+        )}
+      </div>
+
+      <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true">Search</button>
+    </form>
+  );
+}
+
 function TripForm({
   trip,
   setTrip,
@@ -438,113 +701,53 @@ function TripForm({
     onSubmit();
   };
 
+  const formatPlannerDate = (value: string) => {
+    if (!value) return "";
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return value;
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(year, month - 1, day));
+  };
+
+  const nextDay = (value: string) => {
+    if (!value) return "";
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return "";
+
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + 1);
+
+    const nextYear = date.getFullYear();
+    const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
+    const nextDate = String(date.getDate()).padStart(2, "0");
+
+    return `${nextYear}-${nextMonth}-${nextDate}`;
+  };
+
   const dateLabel =
     trip.checkIn && trip.checkOut
-      ? `${trip.checkIn} → ${trip.checkOut}`
+      ? `${formatPlannerDate(trip.checkIn)} → ${formatPlannerDate(trip.checkOut)}`
       : "Any dates";
 
-  const guestLabel = `${trip.adults || 2} adult${(trip.adults || 2) === 1 ? "" : "s"}${
-    trip.children
-      ? ` · ${trip.children} child${trip.children === 1 ? "" : "ren"}`
-      : ""
-  }`;
+  const guestLabel = `${trip.adults || 2} adult${(trip.adults || 2) === 1 ? "" : "s"} and ${
+    trip.children || 0
+  } ${(trip.children || 0) === 1 ? "child" : "children"}`;
 
   const selectedAmenities = trip.amenities
     .map((amenity) => amenityLabels[amenity] || amenity.replaceAll("_", " "))
     .slice(0, 2);
 
-  return (
-    <form className="trip-form trip-planner" onSubmit={handleSubmit}>
-      {variant !== "search" && (
-      <div className="trip-planner-controls">
-        <div className="planner-field">
-          <span className="planner-label">Destination</span>
-          <Select
-            value={trip.destination || "any"}
-            onValueChange={(value) =>
-              update({ destination: value === "any" ? "" : value })
-            }
-          >
-            <SelectTrigger id={`${id}-destination`} className="planner-select">
-              <SelectValue placeholder="Anywhere" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Anywhere</SelectItem>
-              {cities.map((city) => (
-                <SelectItem key={city} value={city}>
-                  {city}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+  const moreCount =
+    (trip.budget && trip.budget !== "Any" ? 1 : 0) +
+    (trip.vibe ? 1 : 0) +
+    trip.amenities.length;
 
-        <div className="planner-field planner-dates">
-          <span className="planner-label">Dates</span>
-          <div className="planner-date-values">
-            <input
-              id={`${id}-check-in`}
-              type="date"
-              className="planner-date-input"
-              value={trip.checkIn || ""}
-              onChange={(event) => update({ checkIn: event.target.value })}
-              aria-label="Check-in"
-            />
-            <span aria-hidden="true">→</span>
-            <input
-              id={`${id}-check-out`}
-              type="date"
-              className="planner-date-input"
-              value={trip.checkOut || ""}
-              min={trip.checkIn || undefined}
-              onChange={(event) => update({ checkOut: event.target.value })}
-              aria-label="Check-out"
-            />
-          </div>
-          <span className="planner-value planner-date-summary">
-            {dateLabel}
-          </span>
-        </div>
-
-        <div className="planner-field">
-          <span className="planner-label">Guests</span>
-          <div className="planner-guest-row">
-            <select
-              className="planner-native-select"
-              value={trip.adults || 2}
-              onChange={(event) =>
-                update({ adults: Number(event.target.value) })
-              }
-              aria-label="Adults"
-            >
-              {Array.from({ length: 10 }, (_, index) => index + 1).map(
-                (count) => (
-                  <option key={count} value={count}>
-                    {count} adult{count === 1 ? "" : "s"}
-                  </option>
-                ),
-              )}
-            </select>
-            <select
-              className="planner-native-select"
-              value={trip.children || 0}
-              onChange={(event) =>
-                update({ children: Number(event.target.value) })
-              }
-              aria-label="Children"
-            >
-              {Array.from({ length: 7 }, (_, index) => index).map((count) => (
-                <option key={count} value={count}>
-                  {count} children
-                </option>
-              ))}
-            </select>
-          </div>
-          <span className="planner-value planner-guest-summary">
-            {guestLabel}
-          </span>
-        </div>
-
+  const extraFilters = (
+    <>
         <div className="planner-field">
           <span className="planner-label">Budget</span>
           <Select
@@ -604,7 +807,7 @@ function TripForm({
           <details className="planner-popover">
             <summary className="planner-summary">
               {selectedAmenities.length
-                ? selectedAmenities.join(" · ")
+                ? selectedAmenities.join(" and ")
                 : "Choose"}
               <ChevronDown size={14} />
             </summary>
@@ -624,6 +827,118 @@ function TripForm({
             </div>
           </details>
         </div>
+    </>
+  );
+
+  return (
+    <form className="trip-form trip-planner" onSubmit={handleSubmit}>
+      {variant !== "search" && (
+      <div className="trip-planner-controls">
+        <div className="planner-field">
+          <span className="planner-label">Destination</span>
+          <Select
+            value={trip.destination || "any"}
+            onValueChange={(value) =>
+              update({ destination: value === "any" ? "" : value })
+            }
+          >
+            <SelectTrigger id={`${id}-destination`} className="planner-select">
+              <SelectValue>{trip.destination || "Anywhere"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Anywhere</SelectItem>
+              {cities.map((city) => (
+                <SelectItem key={city} value={city}>
+                  {city}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="planner-field planner-dates">
+          <span className="planner-label">Dates</span>
+          <div className="planner-date-values">
+            <input
+              id={`${id}-check-in`}
+              type="date"
+              className="planner-date-input"
+              value={trip.checkIn || ""}
+              onChange={(event) => {
+                const checkIn = event.target.value;
+                update({
+                  checkIn,
+                  checkOut: nextDay(checkIn),
+                });
+              }}
+              aria-label="Check-in"
+            />
+            <span aria-hidden="true">→</span>
+            <input
+              id={`${id}-check-out`}
+              type="date"
+              className="planner-date-input"
+              value={trip.checkOut || ""}
+              min={trip.checkIn || undefined}
+              onChange={(event) => update({ checkOut: event.target.value })}
+              aria-label="Check-out"
+            />
+          </div>
+          <span className="planner-value planner-date-summary">
+            {dateLabel}
+          </span>
+        </div>
+
+        <div className="planner-field">
+          <span className="planner-label">Guests</span>
+          <div className="planner-guest-row">
+            <select
+              className="planner-native-select"
+              value={trip.adults || 2}
+              onChange={(event) =>
+                update({ adults: Number(event.target.value) })
+              }
+              aria-label="Adults"
+            >
+              {Array.from({ length: 10 }, (_, index) => index + 1).map(
+                (count) => (
+                  <option key={count} value={count}>
+                    {count} adult{count === 1 ? "" : "s"}
+                  </option>
+                ),
+              )}
+            </select>
+            <select
+              className="planner-native-select"
+              value={trip.children || 0}
+              onChange={(event) =>
+                update({ children: Number(event.target.value) })
+              }
+              aria-label="Children"
+            >
+              {Array.from({ length: 7 }, (_, index) => index).map((count) => (
+                <option key={count} value={count}>
+                  {count} {count === 1 ? "child" : "children"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="planner-value planner-guest-summary">
+            {guestLabel}
+          </span>
+        </div>
+
+        {variant === "controls" ? (
+          <details className="planner-filters">
+            <summary className="planner-filters-summary">
+              <SlidersHorizontal size={15} /> More filters
+              {moreCount > 0 ? <span className="planner-filters-count">{moreCount}</span> : null}
+            </summary>
+            <div className="planner-filters-panel">{extraFilters}</div>
+          </details>
+        ) : (
+          extraFilters
+        )}
       </div>
 
       )}
@@ -877,6 +1192,170 @@ function TripUnderstanding({
   );
 }
 
+const resultFilterDefs: { key: string; label: string; test: (hotel: Hotel) => boolean }[] = [
+  ...amenityChoices.map((amenity) => ({
+    key: `amenity_${amenity}`,
+    label: amenityLabels[amenity] || amenity.replaceAll("_", " "),
+    test: (hotel: Hotel) => hotel.amenities.includes(amenity),
+  })),
+  { key: "rating_45", label: "Rated 4.5 and up", test: (hotel: Hotel) => hotel.rating >= 4.5 },
+  { key: "tier_Budget", label: "Budget stays", test: (hotel: Hotel) => hotel.price_tier === "Budget" },
+  { key: "tier_Mid-range", label: "Mid-range stays", test: (hotel: Hotel) => hotel.price_tier === "Mid-range" },
+  { key: "tier_Luxury", label: "Luxury stays", test: (hotel: Hotel) => hotel.price_tier === "Luxury" },
+];
+
+/** Bars show how many stays sit at each price. The two handles pick the range. */
+function PriceRange({
+  prices,
+  min,
+  max,
+  value,
+  onChange,
+  format,
+}: {
+  prices: number[];
+  min: number;
+  max: number;
+  value: [number, number];
+  onChange: (value: [number, number]) => void;
+  format: (usd: number) => string;
+}) {
+  if (prices.length < 1 || max <= min) {
+    return <p className="rf-note">Price ranges show up once a search returns stays with rates.</p>;
+  }
+  const bins = 14;
+  const span = max - min;
+  const counts = Array.from({ length: bins }, () => 0);
+  prices.forEach((price) => {
+    counts[Math.min(bins - 1, Math.floor(((price - min) / span) * bins))] += 1;
+  });
+  const top = Math.max(1, ...counts);
+  const step = Math.max(1, Math.round(span / 100));
+  const [low, high] = value;
+  const pct = (v: number) => ((v - min) / span) * 100;
+
+  return (
+    <div className="rf-price">
+      <div className="rf-price-label">
+        {format(low)} to {format(high)}
+        {high >= max ? "+" : ""}
+      </div>
+      <div className="rf-bars" aria-hidden="true">
+        {counts.map((count, index) => {
+          const from = min + (index / bins) * span;
+          const inside = from + span / bins >= low && from <= high;
+          return (
+            <span
+              key={index}
+              className={inside ? "is-in" : ""}
+              style={{ height: count ? `${Math.max(16, (count / top) * 100)}%` : "4%" }}
+            />
+          );
+        })}
+      </div>
+      <div className="rf-slider">
+        <div className="rf-track">
+          <div className="rf-fill" style={{ left: `${pct(low)}%`, right: `${100 - pct(high)}%` }} />
+        </div>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={low}
+          aria-label="Lowest price"
+          onChange={(event) => onChange([Math.min(Number(event.target.value), high - step), high])}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={high}
+          aria-label="Highest price"
+          onChange={(event) => onChange([low, Math.max(Number(event.target.value), low + step)])}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ResultFilterPanel({
+  matches,
+  shownCount,
+  prices,
+  min,
+  max,
+  range,
+  onRange,
+  active,
+  onToggle,
+  onClear,
+  onTripDetails,
+  format,
+}: {
+  matches: Match[];
+  shownCount: number;
+  prices: number[];
+  min: number;
+  max: number;
+  range: [number, number];
+  onRange: (value: [number, number]) => void;
+  active: string[];
+  onToggle: (key: string) => void;
+  onClear: () => void;
+  onTripDetails: () => void;
+  format: (usd: number) => string;
+}) {
+  const options = resultFilterDefs.map((def) => ({
+    ...def,
+    count: matches.filter((match) => def.test(match.hotel)).length,
+  }));
+  return (
+    <div className="rf-panel">
+      <div>
+        <h3 className="rf-title">Your budget per night</h3>
+        <PriceRange prices={prices} min={min} max={max} value={range} onChange={onRange} format={format} />
+      </div>
+      <div>
+        <h3 className="rf-title">Popular filters</h3>
+        <div className="rf-grid">
+          {options.map((option) => {
+            const on = active.includes(option.key);
+            const off = option.count === 0 && !on;
+            return (
+              <label key={option.key} className={`rf-row${off ? " is-off" : ""}`}>
+                <input
+                  type="checkbox"
+                  className="rf-box"
+                  checked={on}
+                  disabled={off}
+                  onChange={() => onToggle(option.key)}
+                />
+                <span>{option.label}</span>
+                <span className="rf-count">{option.count}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+      <div className="rf-footer">
+        <span>
+          Showing {shownCount} of {matches.length} {matches.length === 1 ? "stay" : "stays"}
+        </span>
+        <div>
+          <button type="button" className="rf-link" onClick={onTripDetails}>
+            Edit trip details
+          </button>
+          <button type="button" className="rf-link" onClick={onClear}>
+            Clear all
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HotelCard({
   match,
   index,
@@ -915,10 +1394,12 @@ function HotelCard({
           />
         </button>
         <span className="card-rank">
-          {String(index + 1).padStart(2, "0")} / YOUR MATCH
+          {String(index + 1).padStart(2, "0")} /{" "}
+          {typeof match.fit_percent === "number" ? `${match.fit_percent}% MATCH` : "YOUR MATCH"}
         </span>
         <span className="rating-pill">
           <Star size={13} fill="currentColor" /> {hotel.rating.toFixed(1)}
+          {hotel.review_count > 0 ? <span className="rating-count"> ({hotel.review_count})</span> : null}
         </span>
       </div>
       <div className="hotel-details">
@@ -951,18 +1432,34 @@ function HotelCard({
           ))}
         </div>
         <div className="match-copy">
-          <p className="match-kicker">
-            <Sparkles size={13} /> WHY IT FITS
-          </p>
-          <p>{match.why_it_matches}</p>
+          {match.why_it_matches ? (
+            <>
+              <p className="match-kicker">
+                <Sparkles size={13} /> WHY IT FITS
+              </p>
+              <p>{match.why_it_matches}</p>
+            </>
+          ) : null}
 
-          <p className="know-label">GOOD TO KNOW</p>
-          <p className="know-copy">{match.things_to_know}</p>
+          {match.things_to_know && !/^live property information/i.test(match.things_to_know) ? (
+            <>
+              <p className="know-label">GOOD TO KNOW</p>
+              <p className="know-copy">{match.things_to_know}</p>
+            </>
+          ) : null}
         </div>
         <div className="card-bottom">
           <div className="price-block">
-            <strong>{price(hotel.estimated_price_per_night)}</strong>
-            <span>{match.liveRate ? "live rate" : "estimated / night"}</span>
+            <strong>
+              {hotel.estimated_price_per_night > 0 ? price(hotel.estimated_price_per_night) : "Rate not shown"}
+            </strong>
+            <span>
+              {hotel.estimated_price_per_night > 0
+                ? match.liveRate
+                  ? "live rate"
+                  : "estimated / night"
+                : "check the booking site"}
+            </span>
           </div>
           <div className="card-actions">
             <button
@@ -1020,6 +1517,9 @@ export function DiscoveryApp({
   const [detailTab, setDetailTab] = useState<DetailTab>("ratings");
   const [bookingHotel, setBookingHotel] = useState<Hotel | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [askOpen, setAskOpen] = useState(false);
   const [askText, setAskText] = useState("");
   const [conversation, setConversation] = useState<
@@ -1210,8 +1710,38 @@ export function DiscoveryApp({
       }).format(Math.round(usd * currencyRates[currency])),
     [currency],
   );
+  const resultPrices = useMemo(
+    () => matches.map((match) => match.hotel.estimated_price_per_night).filter((value) => value > 0),
+    [matches],
+  );
+  let priceMin = resultPrices.length ? Math.floor(Math.min(...resultPrices)) : 0;
+  let priceMax = resultPrices.length ? Math.ceil(Math.max(...resultPrices)) : 0;
+  // A single price (or very close prices) still needs room to slide.
+  if (resultPrices.length && priceMax - priceMin < Math.max(40, priceMax * 0.2)) {
+    const pad = Math.max(20, Math.round(priceMax * 0.25));
+    priceMin = Math.max(0, priceMin - pad);
+    priceMax = priceMax + pad;
+  }
+  const activeRange: [number, number] = priceRange
+    ? [Math.max(priceMin, priceRange[0]), Math.min(priceMax, priceRange[1])]
+    : [priceMin, priceMax];
+  const rangeActive = !!priceRange && (activeRange[0] > priceMin || activeRange[1] < priceMax);
+  const shownMatches = useMemo(() => {
+    if (!searched) return matches;
+    return matches.filter(({ hotel }) => {
+      const nightly = hotel.estimated_price_per_night;
+      if (nightly > 0 && (nightly < activeRange[0] || nightly > activeRange[1])) return false;
+      return activeFilters.every((key) => resultFilterDefs.find((def) => def.key === key)?.test(hotel) ?? true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches, searched, activeFilters, priceRange, priceMin, priceMax]);
+  const activeCount = activeFilters.length + (rangeActive ? 1 : 0);
+  const clearResultFilters = () => {
+    setPriceRange(null);
+    setActiveFilters([]);
+  };
   const selectedMatch =
-    matches.find((match) => match.hotel.id === selectedId) || matches[0];
+    shownMatches.find((match) => match.hotel.id === selectedId) || shownMatches[0];
 
   const saveRecentTrip = useCallback((nextTrip: TripRequest) => {
     if (!nextTrip.query.trim() && !nextTrip.destination && !nextTrip.party && !nextTrip.vibe && nextTrip.amenities.length === 0) return;
@@ -1248,6 +1778,8 @@ export function DiscoveryApp({
       if (!response.ok)
         throw new Error(data.error || "We couldn't find stays right now.");
       setMatches(data.matches);
+      setPriceRange(null);
+      setActiveFilters([]);
       setTotal(data.total);
       setCurrentSource(data.source);
       setEnhanced(data.enhanced);
@@ -1453,12 +1985,11 @@ export function DiscoveryApp({
             </span>
           </Link>
           <div className="header-trip-planner">
-            <TripForm
+            <HeaderSearch
               trip={trip}
               setTrip={setTrip}
               onSubmit={() => findStays(trip)}
               busy={busy}
-              variant="controls"
             />
           </div>
           <div className="header-actions">
@@ -1524,7 +2055,7 @@ export function DiscoveryApp({
               </div>
 
               <div className="recent-trips-list">
-                {recentTrips.slice(0, 6).map((saved) => (
+                {dedupeTrips(recentTrips).slice(0, 6).map((saved) => (
                   <button
                     key={saved.id}
                     type="button"
@@ -1613,7 +2144,7 @@ export function DiscoveryApp({
             </button>
             <div className="results-count">
               {matches.length
-                ? `${matches.length} ${searched ? "top picks" : "stays"}`
+                ? `${matches.length} ${searched ? (matches.length === 1 ? "top pick" : "top picks") : matches.length === 1 ? "stay" : "stays"}`
                 : "0 stays"}
             </div>
           </div>
@@ -1651,8 +2182,8 @@ export function DiscoveryApp({
                 <div>
                   <span className="eyebrow">YOUR STAY OPTIONS</span>
                   <div className="results-workspace-title">
-                    <strong>{total} stays</strong>
-                    <span>matched to this trip</span>
+                    <strong>{(shownMatches.length < matches.length ? shownMatches.length : total)} {(shownMatches.length < matches.length ? shownMatches.length : total) === 1 ? "stay" : "stays"}</strong>
+                    <span>{shownMatches.length < matches.length ? `of ${matches.length} after filters` : "matched to this trip"}</span>
                   </div>
                 </div>
 
@@ -1660,19 +2191,41 @@ export function DiscoveryApp({
                   <button
                     type="button"
                     className="results-control"
-                    onClick={() => setFiltersOpen(true)}
+                    onClick={() => setPanelOpen((open) => !open)}
+                    aria-expanded={panelOpen}
                   >
                     <SlidersHorizontal size={15} />
-                    Filters
+                    Filters{activeCount ? ` (${activeCount})` : ""}
                   </button>
                 </div>
               </div>
 
+              {panelOpen && (
+                <ResultFilterPanel
+                  matches={matches}
+                  shownCount={shownMatches.length}
+                  prices={resultPrices}
+                  min={priceMin}
+                  max={priceMax}
+                  range={activeRange}
+                  onRange={setPriceRange}
+                  active={activeFilters}
+                  onToggle={(key) =>
+                    setActiveFilters((current) =>
+                      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+                    )
+                  }
+                  onClear={clearResultFilters}
+                  onTripDetails={() => setFiltersOpen(true)}
+                  format={formatPrice}
+                />
+              )}
+
               <div className={`results-workspace-body${view === "map" ? " show-map" : " show-list"}`} data-view={view}>
                 <section className="results-stays-column">
-                  {matches.length ? (
+                  {shownMatches.length ? (
                     <div className="hotel-grid">
-                      {matches.map((match, index) => (
+                      {shownMatches.map((match, index) => (
                         <HotelCard
                           key={match.hotel.id}
                           match={match}
@@ -1698,15 +2251,21 @@ export function DiscoveryApp({
                         Try a wider budget or remove a must-have. A different
                         destination may open up more options.
                       </p>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setTrip(blankTrip);
-                          findStays(blankTrip);
-                        }}
-                      >
-                        Clear trip details
-                      </Button>
+                      {matches.length ? (
+                        <Button variant="outline" onClick={clearResultFilters}>
+                          Clear filters
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setTrip(blankTrip);
+                            findStays(blankTrip);
+                          }}
+                        >
+                          Clear trip details
+                        </Button>
+                      )}
                     </div>
                   )}
                 </section>
@@ -1714,7 +2273,7 @@ export function DiscoveryApp({
                 <aside className={`results-map-column${view === "map" ? " is-mobile-visible" : ""}`}>
                   <div className="results-map-frame">
                     <MapView
-                      matches={matches}
+                      matches={shownMatches}
                       selectedId={selectedId}
                       onSelect={setSelectedId}
                       formatPrice={formatPrice}
