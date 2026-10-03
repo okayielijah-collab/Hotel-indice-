@@ -65,7 +65,10 @@ export async function POST(request: NextRequest) {
         : catalog.hotels;
 
     const ranked = rankHotels(hotelsForRanking, parsed.data, inventory);
-    const result = await refineWithAI(ranked, parsed.data);
+    const result = {
+      matches: ranked,
+      total: ranked.length,
+    };
 
     const responseResult = providerResult?.catalogHotels?.length
       ? {
