@@ -2025,6 +2025,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px sol
 }
 
 .results-stays-column .hotel-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
@@ -3678,3 +3679,26 @@ body > div:has(> [data-slot="select-content"]) { z-index: 400 !important; }
 .map-canvas .leaflet-tile-pane { filter: grayscale(.6) saturate(.7) brightness(1.06) contrast(.92); }
 /* card badges: the rating no longer collides with the match percent */
 .results-stays-column .rating-pill { top: auto; bottom: 14px; right: auto; left: 17px; }
+
+
+/* UX01 — single compact search surface */
+.results-area > .home-trip-planner {
+  display: none !important;
+}
+
+/* UX01 — hotel cards stay two-up on desktop */
+.results-stays-column .hotel-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 900px) {
+  .results-stays-column .hotel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .results-stays-column .hotel-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

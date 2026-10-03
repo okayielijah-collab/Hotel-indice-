@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./command-center.css";
 
 export const metadata: Metadata = {
   title: "Hotel Indice — Find a stay that fits",

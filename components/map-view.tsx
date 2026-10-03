@@ -23,6 +23,8 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   const userAccuracy = useRef<Circle | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const locateRef = useRef<() => void>(() => undefined);
+  const [locateNote, setLocateNote] = useState("");
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
@@ -55,6 +57,21 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
           crossOrigin: true,
         }).addTo(instance);
         L.control.zoom({ position: "topright" }).addTo(instance);
+        const LocateControl = L.Control.extend({
+          onAdd() {
+            const bar = L.DomUtil.create("div", "leaflet-bar leaflet-control map-locate-control");
+            const link = L.DomUtil.create("a", "map-locate", bar) as HTMLAnchorElement;
+            link.href = "#";
+            link.setAttribute("role", "button");
+            link.setAttribute("title", "Zoom to my location");
+            link.setAttribute("aria-label", "Zoom to my location");
+            link.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg>';
+            L.DomEvent.disableClickPropagation(bar);
+            L.DomEvent.on(link, "click", (event) => { L.DomEvent.preventDefault(event); locateRef.current(); });
+            return bar;
+          },
+        });
+        new LocateControl({ position: "topright" }).addTo(instance);
         map.current = instance;
         setReady(true);
       } catch (error) { console.error("Map initialization failed", error); setFailed(true); }
@@ -155,8 +172,36 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
     }
   }, [selectedId, matches]);
 
+  const locateMe = () => {
+    if (!map.current) return;
+    const say = (message: string) => { setLocateNote(message); window.setTimeout(() => setLocateNote(""), 5000); };
+    if (typeof navigator === "undefined" || !navigator.geolocation) { say("Your browser can't share its location."); return; }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        const instance = map.current;
+        if (!instance) return;
+        instance.flyTo([latitude, longitude], Math.max(instance.getZoom(), 13), { duration: 0.8 });
+        if (userMarker.current) return;
+        import("leaflet").then((L) => {
+          if (!map.current || userMarker.current) return;
+          const icon = L.divIcon({ className: "user-location-wrap", iconSize: [22, 22], iconAnchor: [11, 11], html: '<span class="user-location-dot"><span class="user-location-pulse"></span></span>' });
+          userMarker.current = L.marker([latitude, longitude], { icon, keyboard: false, zIndexOffset: 1000 }).addTo(map.current);
+          userAccuracy.current = L.circle([latitude, longitude], { radius: accuracy, color: "#2f6a82", fillColor: "#2f6a82", fillOpacity: 0.12, weight: 1 }).addTo(map.current);
+        }).catch(() => undefined);
+      },
+      (error) => {
+        say(error.code === error.PERMISSION_DENIED ? "Location is blocked. Allow it in your browser settings to find yourself on the map." : "We couldn't find your location. Try again.");
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+    );
+  };
+
+  useEffect(() => { locateRef.current = locateMe; });
+
   return <div className="map-canvas-wrap">
     <div className="map-canvas" ref={container} role="application" aria-label="Map of matching hotels" />
+    {locateNote && <div className="map-locate-note" role="status">{locateNote}</div>}
     {!ready && !failed && <div className="map-loading">Loading the map…</div>}
     {failed && <div className="map-loading">The map could not load. Switch to List to browse the stays.</div>}
     {ready && !failed && matches.length === 0 && <div className="map-empty-state" role="status">No hotels to map yet. Add hotels to your catalog or try another search.</div>}

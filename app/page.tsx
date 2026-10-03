@@ -1,4 +1,4 @@
-import { DiscoveryApp } from "@/components/discovery-app";
+import { CommandCenter } from "@/components/command-center";
 import { getCatalog } from "@/lib/hotels";
 import { rankHotels, type TripRequest } from "@/lib/matching";
 
@@ -17,5 +17,5 @@ export default async function Home() {
   } catch {
     catalogError = "The hotel catalog is temporarily unavailable. Please check your Supabase connection and try again.";
   }
-  return <DiscoveryApp initialMatches={matches} source={source} catalogError={catalogError} />;
+  return <CommandCenter initialMatches={matches} source={source} catalogError={catalogError} />;
 }

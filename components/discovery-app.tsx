@@ -572,7 +572,7 @@ function HeaderSearch({
             aria-label="Check out date"
             data-empty={trip.checkOut ? "false" : "true"}
             value={trip.checkOut || ""}
-            min={nextDayISO(trip.checkIn) || undefined}
+            min={trip.checkIn ? nextDayISO(trip.checkIn) : undefined}
             onChange={(event) => update({ checkOut: event.target.value })}
           />
         </div>
