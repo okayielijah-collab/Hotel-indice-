@@ -12,7 +12,7 @@ type Props = {
   catalogError?: string;
 };
 
-type MatchResponse = { matches: Match[]; total: number; enhanced: boolean; error?: string };
+type MatchResponse = { matches: Match[]; error?: string; enhanced?: boolean; understood?: string; notice?: string };
 type SortKey = "match" | "price_asc" | "price_desc" | "rating";
 type Range = [number, number];
 type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities" | "match";
@@ -41,6 +41,62 @@ type TripForm = {
   amenities: string[];
 };
 const blankTrip: TripForm = { destination: "", checkIn: "", checkOut: "", adults: 2, children: 0, budget: "Any", vibe: "", amenities: [] };
+
+type LastSearch = { kind: "trip"; trip: TripForm } | { kind: "text"; query: string; destination: string };
+
+/** Anonymous usage events (no IP, no account). Failing to send must never affect the visitor. */
+function track(event: Record<string, unknown>) {
+  try {
+    const body = JSON.stringify(event);
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/track", new Blob([body], { type: "application/json" }));
+      return;
+    }
+    void fetch("/api/track", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
+  } catch { /* ignore */ }
+}
+
+function shareParams(search: LastSearch): URLSearchParams {
+  const params = new URLSearchParams();
+  if (search.kind === "text") {
+    params.set("q", search.query.slice(0, 300));
+    if (search.destination) params.set("where", search.destination);
+    return params;
+  }
+  const trip = search.trip;
+  if (trip.destination) params.set("where", trip.destination);
+  if (trip.checkIn && trip.checkOut) { params.set("in", trip.checkIn); params.set("out", trip.checkOut); }
+  if (trip.adults !== 2) params.set("adults", String(trip.adults));
+  if (trip.children) params.set("children", String(trip.children));
+  if (trip.budget !== "Any") params.set("budget", trip.budget);
+  if (trip.vibe) params.set("style", trip.vibe);
+  if (trip.amenities.length) params.set("must", trip.amenities.join(","));
+  return params;
+}
+
+/** Reads a shared link back into a search. Everything is validated; unknown values are dropped. */
+function parseShared(queryString: string): LastSearch | null {
+  const params = new URLSearchParams(queryString);
+  const where = (params.get("where") ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 100);
+  const text = (params.get("q") ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 300);
+  if (text) return { kind: "text", query: text, destination: where };
+  if (!["where", "in", "out", "adults", "children", "budget", "style", "must"].some((key) => params.has(key))) return null;
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  const checkIn = iso.test(params.get("in") ?? "") ? (params.get("in") as string) : "";
+  const checkOut = iso.test(params.get("out") ?? "") ? (params.get("out") as string) : "";
+  const validDates = checkIn && checkOut && checkOut > checkIn;
+  const number = (key: string, fallback: number, min: number, max: number) => {
+    const value = Number.parseInt(params.get(key) ?? "", 10);
+    return Number.isFinite(value) && value >= min && value <= max ? value : fallback;
+  };
+  const budget = ["Budget", "Mid-range", "Luxury"].includes(params.get("budget") ?? "") ? (params.get("budget") as PriceTier) : "Any";
+  const style = styleChoices.includes(params.get("style") ?? "") ? (params.get("style") as string) : "";
+  const must = (params.get("must") ?? "").split(",").filter((item) => amenityChoices.includes(item)).slice(0, 8);
+  return {
+    kind: "trip",
+    trip: { ...blankTrip, destination: where, checkIn: validDates ? checkIn : "", checkOut: validDates ? checkOut : "", adults: number("adults", 2, 1, 10), children: number("children", 0, 0, 6), budget, vibe: style, amenities: must },
+  };
+}
 
 const TRIPS_KEY = "hotel-indice:trips:v1";
 type SavedTrip = { id: string; trip: TripForm; label: string; saved: boolean; at: number };
@@ -379,6 +435,10 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [tripsTab, setTripsTab] = useState<"trips" | "stays">("trips");
   const [currentTripId, setCurrentTripId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [lastSearch, setLastSearch] = useState<LastSearch | null>(null);
+  const [shareNote, setShareNote] = useState("");
+  const sharedRan = useRef(false);
+  const [aiUsed, setAiUsed] = useState(false);
   const [listState, setListState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [listError, setListError] = useState("");
   const [currency, setCurrency] = useState("USD");
@@ -579,14 +639,21 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       const response = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
       const data = (await response.json()) as MatchResponse;
       if (!response.ok) throw new Error(data.error || "We couldn't find stays right now.");
+      if (data.notice && data.matches.length === 0) {
+        setAskError(data.notice);
+        setAskOpen(true);
+        return false;
+      }
       setAiMatches(data.matches);
-      setAiQuery(label);
+      setAiQuery(data.understood || label);
+      setAiUsed(Boolean(data.enhanced));
       resetRanges();
       setQuery("");
       setSort("match");
-      setSelectedId(data.matches[0]?.hotel.id ?? null);
+      setSelectedId(null);
       setDetailId(null);
       setAskOpen(false);
+      track({ kind: "search", query: label.slice(0, 200), destination: String(request.destination ?? "").slice(0, 100), results: data.matches.length });
       return true;
     } catch (error) {
       setAskError(error instanceof Error ? error.message : "We couldn't find stays right now. Try again.");
@@ -597,11 +664,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     }
   }
 
+  async function searchText(text: string, destination: string) {
+    const ok = await runSearch({ query: text, destination, budget: "Any", amenities: [], party: "", vibe: "" }, text);
+    if (ok) { setCurrentTripId(null); setLastSearch({ kind: "text", query: text, destination }); }
+  }
+
   async function ask(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const ok = await runSearch({ query: trimmed, destination: trip.destination, budget: "Any", amenities: [], party: "", vibe: "" }, trimmed);
-    if (ok) setCurrentTripId(null);
+    await searchText(trimmed, trip.destination);
   }
 
   async function searchTrip(chosen: TripForm = trip) {
@@ -612,8 +683,39 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     if (chosen.checkIn && chosen.checkOut) { request.checkIn = chosen.checkIn; request.checkOut = chosen.checkOut; }
     const label = [chosen.destination || "Anywhere", chosen.checkIn && chosen.checkOut ? `${chosen.checkIn} to ${chosen.checkOut}` : ""].filter(Boolean).join(", ");
     const ok = await runSearch(request, label);
-    if (ok) recordTrip(chosen, label);
+    if (ok) { recordTrip(chosen, label); setLastSearch({ kind: "trip", trip: chosen }); }
   }
+
+  async function shareSearch() {
+    if (!lastSearch) return;
+    const url = `${window.location.origin}${window.location.pathname}?${shareParams(lastSearch).toString()}`;
+    try {
+      if (typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches) {
+        await navigator.share({ title: "Hotel Indice", text: "Stays I found on Hotel Indice", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareNote("Link copied");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareNote("Couldn't copy the link");
+    }
+    window.setTimeout(() => setShareNote(""), 2500);
+  }
+
+  const openBooking = (id: string) => { setBookingId(id); track({ kind: "rates_open", hotel_id: id.slice(0, 80) }); };
+
+  // A shared link runs its search once when the page opens.
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (sharedRan.current) return;
+    sharedRan.current = true;
+    const shared = parseShared(window.location.search);
+    if (!shared) return;
+    if (shared.kind === "trip") { setTrip(shared.trip); void searchTrip(shared.trip); }
+    else { setTrip((current) => ({ ...current, destination: shared.destination })); void searchText(shared.query, shared.destination); }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   return (
     <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"}>
@@ -669,12 +771,18 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             </div>
           )}
           {aiMatches && (
-            <span className="cc-ai-tag"><Sparkles size={12} aria-hidden /> Matched to: {aiQuery.length > 40 ? `${aiQuery.slice(0, 40)}...` : aiQuery}
+            <span className="cc-ai-tag" title={aiUsed ? "Matched with AI" : "Matched by keywords"}><Sparkles size={12} aria-hidden /> Matched to: {aiQuery.length > 60 ? `${aiQuery.slice(0, 60)}...` : aiQuery}
               {currentTripId && (() => { const isSaved = store.trips.find((item) => item.id === currentTripId)?.saved ?? false; return <button type="button" className="cc-savetrip" aria-pressed={isSaved} onClick={() => toggleSaveTrip(currentTripId)}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} aria-hidden /> {isSaved ? "Saved" : "Save trip"}</button>; })()}
-              <button type="button" onClick={() => { setAiMatches(null); setAiQuery(""); resetRanges(); setCurrentTripId(null); }} aria-label="Clear AI matches"><X size={12} /></button>
+              {lastSearch && <button type="button" className="cc-savetrip" onClick={shareSearch}>{shareNote || "Share"}</button>}
+              <button type="button" onClick={() => { setAiMatches(null); setAiQuery(""); resetRanges(); setCurrentTripId(null); setLastSearch(null); }} aria-label="Clear AI matches"><X size={12} /></button>
             </span>
           )}
 
+          {!catalogError && (
+            <p className="cc-count" aria-live="polite">
+              {filtersActive ? `${shown.length} of ${pool.length} stays` : `${shown.length} ${shown.length === 1 ? "stay" : "stays"}`}
+            </p>
+          )}
           <div className="cc-list" ref={listRef}>
             {catalogError && <div className="cc-empty" role="alert">{catalogError}</div>}
             {!catalogError && shown.length === 0 && (
@@ -712,7 +820,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                       </div>
                       <div className="cc-card-actions">
                         <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 2 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? "Comparing" : "Compare"}</button>
-                        <button type="button" className="cc-book-btn" onClick={() => setBookingId(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>Check rates <ArrowUpRight size={13} aria-hidden /></button>
+                        <button type="button" className="cc-book-btn" onClick={() => openBooking(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>Check rates <ArrowUpRight size={13} aria-hidden /></button>
                       </div>
                     </div>
                   </div>
@@ -776,7 +884,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                 <span className="cc-dm-badge">{hotel.rating.toFixed(1)}</span>
                 <h2>{hotel.name}</h2>
                 <div className="cc-dm-actions">
-                  <button type="button" className="cc-dm-book" onClick={() => setBookingId(hotel.id)}>Book this hotel</button>
+                  <button type="button" className="cc-dm-book" onClick={() => openBooking(hotel.id)}>Book this hotel</button>
                   <button type="button" className="cc-dm-save" aria-pressed={stayIds.has(hotel.id)} onClick={() => toggleStay(detail)}><Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden /> {stayIds.has(hotel.id) ? "Saved" : "Save stay"}</button>
                 </div>
               </div>
@@ -877,7 +985,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                           ? reality.slice(0, 4).map((item) => <div className="cc-cmp-item" key={`${item.type}-${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)
                           : <div className="cc-cmp-item"><strong>Available context</strong><span>{match.things_to_know}</span></div>}
                       </div>
-                      <button type="button" className="cc-book-btn cc-cmp-book" onClick={() => { setCompareOpen(false); setBookingId(hotel.id); }}>Check rates &amp; book <ArrowUpRight size={15} aria-hidden /></button>
+                      <button type="button" className="cc-book-btn cc-cmp-book" onClick={() => { setCompareOpen(false); openBooking(hotel.id); }}>Check rates &amp; book <ArrowUpRight size={15} aria-hidden /></button>
                     </div>
                   </section>
                 );
@@ -909,7 +1017,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             <div className="cc-note"><strong>Check the live rate</strong><p>Prices and availability can change. The booking partner will show the current rate before you book.</p></div>
             <div className="cc-options">
               {partnerLinks(bookingHotel).map((partner) => (
-                <a key={partner.label} href={partner.href} target="_blank" rel="sponsored noopener noreferrer" onClick={() => setBookingId(null)}>
+                <a key={partner.label} href={partner.href} target="_blank" rel="sponsored noopener noreferrer" onClick={() => { track({ kind: "partner_click", hotel_id: bookingHotel.id.slice(0, 80), partner: partner.label }); setBookingId(null); }}>
                   <span>Continue with {partner.label}</span><ArrowUpRight size={16} aria-hidden />
                 </a>
               ))}

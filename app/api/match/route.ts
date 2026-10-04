@@ -1,93 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCatalog } from "@/lib/hotels";
-import { interpretTrip, rankHotels, refineWithAI } from "@/lib/matching";
-import { getHotelInventory } from "@/lib/inventory";
-import { getHotelProvider } from "@/lib/providers";
-import { normalizeProviderInventory } from "@/lib/providers/types";
 
 export const runtime = "nodejs";
 
-const requestSchema = z.object({
-  destination: z.string().max(100).default(""),
-  party: z.string().max(40).default(""),
-  vibe: z.string().max(40).default(""),
-  budget: z.enum(["Any", "Budget", "Mid-range", "Luxury"]).default("Any"),
-  amenities: z.array(z.string().max(40)).max(12).default([]),
-  query: z.string().max(600).default(""),
-  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  adults: z.number().int().min(1).max(20).optional(),
-  children: z.number().int().min(0).max(20).optional(),
-  maxPrice: z.number().positive().nullable().optional(),
-  minRoomSizeSqm: z.number().positive().nullable().optional(),
+// Anonymous usage events: what people search for, and which stays they check rates on.
+// No IP address, account or cookie is stored.
+const schema = z.object({
+  kind: z.enum(["search", "rates_open", "partner_click"]),
+  query: z.string().trim().max(200).optional(),
+  destination: z.string().trim().max(100).optional(),
+  results: z.number().int().min(0).max(1000).optional(),
+  hotel_id: z.string().trim().max(80).optional(),
+  partner: z.string().trim().max(40).optional(),
 });
+
+// Best-effort limit per server instance: 120 events per hour per visitor.
+const recent = new Map<string, number[]>();
+function limited(ip: string): boolean {
+  const now = Date.now();
+  const hits = (recent.get(ip) ?? []).filter((time) => now - time < 60 * 60 * 1000);
+  if (hits.length >= 120) { recent.set(ip, hits); return true; }
+  recent.set(ip, [...hits, now]);
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const parsed = requestSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: "Please check your trip details." }, { status: 400 });
-    const catalog = await getCatalog();
+    // Respect "Do Not Track".
+    if (request.headers.get("dnt") === "1") return new NextResponse(null, { status: 204 });
 
-    const hotelIds = catalog.hotels.map((hotel) => hotel.id);
-    const interpretedTrip = interpretTrip(parsed.data);
+    const parsed = schema.safeParse(await request.json());
+    if (!parsed.success) return new NextResponse(null, { status: 204 });
 
-    const provider = getHotelProvider();
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (limited(ip)) return new NextResponse(null, { status: 204 });
 
-    const hasStayDates = Boolean(
-      parsed.data.checkIn && parsed.data.checkOut,
-    );
+    const url = process.env.SUPABASE_URL;
+    const publishable = process.env.SUPABASE_PUBLISHABLE_KEY;
+    const key = publishable || process.env.SUPABASE_ANON_KEY;
+    if (!url || !key) return new NextResponse(null, { status: 204 });
 
-    const providerResult =
-      catalog.source === "supabase" && provider && hasStayDates
-        ? await provider.searchInventory({
-            hotelIds,
-            destination:
-              interpretedTrip.destination || parsed.data.destination,
-            adults: parsed.data.adults || (Number(parsed.data.party) || 2),
-            children: parsed.data.children || 0,
-            checkIn: parsed.data.checkIn!,
-            checkOut: parsed.data.checkOut!,
-            currency: "USD",
-          })
-        : null;
-
-    const inventory = providerResult
-      ? normalizeProviderInventory(providerResult.hotels)
-      : catalog.source === "supabase"
-        ? await getHotelInventory(hotelIds)
-        : [];
-
-    const hotelsForRanking =
-      providerResult?.catalogHotels?.length
-        ? providerResult.catalogHotels
-        : catalog.hotels;
-
-    const ranked = rankHotels(hotelsForRanking, parsed.data, inventory);
-    const result = {
-      matches: ranked,
-      total: ranked.length,
-    };
-
-    const responseResult = providerResult?.catalogHotels?.length
-      ? {
-          ...result,
-          matches: result.matches.map((match) => ({
-            ...match,
-            liveRate: true,
-          })),
-        }
-      : result;
-
-    return NextResponse.json({
-      ...responseResult,
-      total: ranked.length,
-      source: providerResult?.catalogHotels?.length ? "provider" : catalog.source,
-      interpreted: interpretTrip(parsed.data),
+    const data = parsed.data;
+    const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/usage_events`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        ...(publishable ? {} : { Authorization: `Bearer ${key}` }),
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        kind: data.kind,
+        query: data.query || null,
+        destination: data.destination || null,
+        results: data.results ?? null,
+        hotel_id: data.hotel_id || null,
+        partner: data.partner || null,
+      }),
     });
+    if (!response.ok) console.error("Usage event failed:", response.status);
   } catch (error) {
-    console.error("Hotel matching failed:", error);
-    return NextResponse.json({ error: "We couldn't load stays right now. Please try again." }, { status: 503 });
+    console.error("Usage event error:", error);
   }
+  // Tracking never reports problems to the visitor.
+  return new NextResponse(null, { status: 204 });
 }

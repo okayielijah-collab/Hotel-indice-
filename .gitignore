@@ -47,3 +47,8 @@ next-env.d.ts
 /outputs/
 /work/
 Docker.dmg
+
+# local backups
+*.before-*
+.interface-backup-*/
+committed.zip

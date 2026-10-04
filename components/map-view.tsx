@@ -24,6 +24,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const locateRef = useRef<() => void>(() => undefined);
+  const centeredOn = useRef<string | null>(null);
   const [locateNote, setLocateNote] = useState("");
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
@@ -102,9 +103,9 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
         return marker;
       });
       if (matches.length === 1) {
-        map.current.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 11);
+        map.current.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 13);
       } else if (matches.length > 1) {
-        map.current.fitBounds(L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])), { padding: [65, 65], maxZoom: 12, animate: true });
+        map.current.fitBounds(L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])), { padding: [65, 65], maxZoom: 14, animate: true });
       }
     }).catch((error) => { console.error("Map pins unavailable", error); setFailed(true); });
     return () => { disposed = true; };
@@ -155,19 +156,15 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
     markers.current.forEach((marker) => {
       marker.getElement()?.querySelector("button")?.classList.toggle("hotel-pin-selected", matches.some(({ hotel }) => hotel.id === selectedId && hotel.latitude === marker.getLatLng().lat && hotel.longitude === marker.getLatLng().lng));
     });
-    if (selectedId && matches.length < 5) {
+    if (!selectedId) { centeredOn.current = null; return; }
+    // Centre the map once each time a different stay is picked (not on every filter change).
+    if (selectedId !== centeredOn.current) {
       const selected = matches.find(({ hotel }) => hotel.id === selectedId)?.hotel;
-
-      if (
-        selected &&
-        Number.isFinite(Number(selected.latitude)) &&
-        Number.isFinite(Number(selected.longitude))
-      ) {
-        map.current?.flyTo(
-          [Number(selected.latitude), Number(selected.longitude)],
-          Math.max(map.current.getZoom(), 10),
-          { duration: 0.6 },
-        );
+      if (selected && Number.isFinite(Number(selected.latitude)) && Number.isFinite(Number(selected.longitude))) {
+        centeredOn.current = selectedId;
+        const target: [number, number] = [Number(selected.latitude), Number(selected.longitude)];
+        if (matches.length < 5) map.current?.flyTo(target, Math.max(map.current.getZoom(), 10), { duration: 0.6 });
+        else map.current?.panTo(target, { animate: true, duration: 0.6 });
       }
     }
   }, [selectedId, matches]);
