@@ -25,6 +25,25 @@ export type MatchEvidence = {
 };
 
 export type Match = {
+  tripadvisor?: {
+    id: number;
+    name: string;
+    rating: number | null;
+    reviewCount: number;
+    ratingIconUrl: string | null;
+    photoCount: number;
+    address: string | null;
+    url: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    subratings: Array<{
+      type: string;
+      typeName: string;
+      rating: number;
+      count: number;
+    }>;
+  } | null;
+
   hotel: Hotel;
   why_it_matches: string;
   things_to_know: string;
@@ -91,6 +110,14 @@ const hardAmenityPhrases: Record<string, string[]> = {
   workspace: ["with a workspace", "with workspace", "has a workspace", "need a workspace", "must have workspace"],
   family_rooms: ["with family rooms", "has family rooms", "need family rooms", "must have family rooms"],
   airport_transfer: ["with airport transfer", "airport shuttle", "need airport transfer", "must have airport transfer"],
+};
+
+export type AITripIntent = {
+  purpose: string;
+  requiredSignals: TripSignal[];
+  preferredSignals: TripSignal[];
+  avoidSignals: TripSignal[];
+  minRoomSizeSqm: number | null;
 };
 
 export type TripIntent = {
@@ -287,7 +314,7 @@ function inferBudget(q: string): PriceTier | "Any" {
 
 function inferMaxPrice(q: string) {
   const match = q.match(
-    /(?:under|below|less than|max(?:imum)?|up to|no more than|at most)\s*\$?\s*(\d{2,5})/i,
+    /(?:under|below|less than|max(?:imum)?|up to|no more than|at most|(?:don['’]t|do not|never)\s+(?:want\s+to\s+)?spend\s+more\s+than|spend\s+no\s+more\s+than|spend\s+less\s+than)\s*\$?\s*(\d{2,5})/i,
   );
 
   return match ? Number(match[1]) : null;
@@ -369,7 +396,10 @@ function inferMinRoomSizeSqm(q: string): number | null {
   return null;
 }
 
-export function interpretTrip(request: TripRequest) {
+export function interpretTrip(
+  request: TripRequest,
+  aiIntent?: AITripIntent,
+) {
   const q = request.query.trim().toLowerCase();
 
   const foundCity = cities.find((city) =>
@@ -426,7 +456,45 @@ export function interpretTrip(request: TripRequest) {
   const vibe = request.vibe || foundVibe;
 
   const party = request.party || inferParty(q);
-  const purpose = inferPurpose(q);
+
+  const deterministicPurpose = inferPurpose(q);
+  const purpose = deterministicPurpose || aiIntent?.purpose || "";
+
+  const mergedRequiredSignals = [
+    ...requiredSignals,
+    ...(aiIntent?.requiredSignals ?? []),
+  ];
+
+  const mergedPreferredSignals = [
+    ...preferredSignals,
+    ...(aiIntent?.preferredSignals ?? []),
+  ];
+
+  const mergedAvoidSignals = [
+    ...avoidSignals,
+    ...(aiIntent?.avoidSignals ?? []),
+  ];
+
+  const requiredSignalSet = new Set(mergedRequiredSignals);
+
+  const preferredSignalSet = new Set(
+    mergedPreferredSignals.filter(
+      (signal) => !requiredSignalSet.has(signal),
+    ),
+  );
+
+  const finalAvoidSignals = [
+    ...new Set(
+      mergedAvoidSignals.filter(
+        (signal) =>
+          !requiredSignalSet.has(signal) &&
+          !preferredSignalSet.has(signal),
+      ),
+    ),
+  ];
+
+  const finalRequiredSignals = [...requiredSignalSet];
+  const finalPreferredSignals = [...preferredSignalSet];
 
   const foundBudget = inferBudget(q);
   const budget = request.budget !== "Any" ? request.budget : foundBudget;
@@ -440,12 +508,12 @@ export function interpretTrip(request: TripRequest) {
   const minRoomSizeSqm =
     request.minRoomSizeSqm !== undefined
       ? request.minRoomSizeSqm
-      : parsedMinRoomSizeSqm;
+      : aiIntent?.minRoomSizeSqm ?? parsedMinRoomSizeSqm;
 
   const signals = [
     ...new Set([
-      ...requiredSignals,
-      ...preferredSignals,
+      ...finalRequiredSignals,
+      ...finalPreferredSignals,
     ]),
   ];
 
@@ -459,15 +527,15 @@ export function interpretTrip(request: TripRequest) {
 
     requirements: {
       amenities: requiredAmenities,
-      signals: requiredSignals,
+      signals: finalRequiredSignals,
     },
 
     preferences: {
       amenities: preferredAmenities,
-      signals: preferredSignals,
+      signals: finalPreferredSignals,
     },
 
-    avoid: avoidSignals,
+    avoid: finalAvoidSignals,
 
     confidence: {
       destination: destination ? 1 : 0,
@@ -488,9 +556,9 @@ export function interpretTrip(request: TripRequest) {
     maxPrice,
     minRoomSizeSqm,
     signals,
-    requiredSignals,
-    preferredSignals,
-    avoidSignals,
+    requiredSignals: finalRequiredSignals,
+    preferredSignals: finalPreferredSignals,
+    avoidSignals: finalAvoidSignals,
     purpose,
     intent,
     query: request.query,
@@ -571,8 +639,9 @@ export function rankHotels(
   catalog: Hotel[],
   request: TripRequest,
   inventory: HotelInventory[] = [],
+  aiIntent?: AITripIntent,
 ): Match[] {
-  const trip = interpretTrip(request);
+  const trip = interpretTrip(request, aiIntent);
 
   const inventoryByHotel = new Map<string, HotelInventory>(
     inventory.map((item) => [item.hotel_id, item]),
@@ -675,6 +744,27 @@ export function rankHotels(
           signalFit(signal, hotel, evidence),
         );
 
+      /*
+       * Hotel Indice weighted decision score.
+       *
+       * Match percentage and ranking should reflect the traveler's
+       * actual intent, not raw points from unrelated signals.
+       *
+       * Unknown evidence is neutral:
+       * if the listing cannot confirm something, we do not treat
+       * that as proof that the hotel fails the requirement.
+       *
+       * Ranking still rewards stronger matches and penalizes
+       * explicit conflicts.
+       */
+      const requiredCriteria =
+        trip.requiredAmenities.length +
+        trip.requiredSignals.length;
+
+      const preferenceCriteria =
+        trip.preferredAmenities.length +
+        trip.preferredSignals.length;
+
       const requiredMatches =
         trip.requiredAmenities.length +
         trip.requiredSignals.length;
@@ -683,25 +773,97 @@ export function rankHotels(
         preferredAmenityFits +
         preferredSignalFits.length;
 
-      /*
-       * Requirements dominate.
-       * Preferences matter next.
-       * Avoidances actively reduce the ranking.
-       * Rating is a supporting signal, not the definition of fit.
-       */
-      const score = Math.round(
-        requiredMatches * 40 +
-        preferenceMatches * 14 +
-        (vibeFit ? 18 : 0) +
-        (partyFit ? 14 : 0) +
-        (trip.maxPrice !== null &&
+      const requiredWeight = requiredCriteria * 30;
+      const requiredFitWeight = requiredMatches * 30;
+
+      const preferenceWeight = preferenceCriteria * 20;
+      const preferenceFitWeight = preferenceMatches * 20;
+
+      const vibeWeight = trip.vibe ? 15 : 0;
+      const vibeFitWeight = vibeFit ? 15 : 0;
+
+      const partyWeight = trip.party ? 10 : 0;
+      const partyFitWeight = partyFit ? 10 : 0;
+
+      const budgetRequested = trip.maxPrice !== null;
+      const withinBudget =
+        budgetRequested &&
         hotel.estimated_price_per_night > 0 &&
-        hotel.estimated_price_per_night <= trip.maxPrice * 0.8
-          ? 6
-          : 0) +
-        hotel.rating * 3 -
-        avoidedConflicts.length * 25,
+        hotel.estimated_price_per_night <= trip.maxPrice!;
+
+      const budgetWeight = budgetRequested ? 10 : 0;
+      const budgetFitWeight = withinBudget ? 10 : 0;
+
+      const roomSizeRequested = trip.minRoomSizeSqm !== null;
+      const roomSizeWeight = roomSizeRequested ? 15 : 0;
+
+      let roomSizeFitWeight = 0;
+
+      if (roomSizeRequested) {
+        const hotelInventory = inventoryByHotel.get(hotel.id);
+
+        const hasQualifyingRoom =
+          hotelInventory?.rooms.some((room) =>
+            roomMeetsRequirements(room, {
+              minSizeSqm: trip.minRoomSizeSqm,
+              minOccupancy: null,
+              minAdults: null,
+              minChildren: null,
+            }),
+          ) ?? false;
+
+        roomSizeFitWeight = hasQualifyingRoom ? 15 : 0;
+      }
+
+      const avoidancePenalty = avoidedConflicts.length * 20;
+
+      /*
+       * Rating is deliberately a small ranking signal.
+       * It should break ties rather than overpower traveler intent.
+       */
+      const ratingSignal = Math.min(15, Math.max(0, hotel.rating * 3));
+
+      const score = Math.round(
+        requiredFitWeight +
+        preferenceFitWeight +
+        vibeFitWeight +
+        partyFitWeight +
+        budgetFitWeight +
+        roomSizeFitWeight +
+        ratingSignal -
+        avoidancePenalty,
       );
+
+      const matchDenominator =
+        requiredWeight +
+        preferenceWeight +
+        vibeWeight +
+        partyWeight +
+        budgetWeight +
+        roomSizeWeight;
+
+      const matchNumerator =
+        requiredFitWeight +
+        preferenceFitWeight +
+        vibeFitWeight +
+        partyFitWeight +
+        budgetFitWeight +
+        roomSizeFitWeight;
+
+      const fit_percent =
+        matchDenominator > 0
+          ? Math.max(
+              1,
+              Math.min(
+                99,
+                Math.round(
+                  ((matchNumerator - avoidancePenalty) /
+                    matchDenominator) *
+                    100,
+                ),
+              ),
+            )
+          : undefined;
 
       const matchEvidence: MatchEvidence[] = [];
 
@@ -860,18 +1022,13 @@ export function rankHotels(
           ? `Fits your search on ${labelsText}.`
           : hotelFacts();
 
-      const maxScore =
-        requiredMatches * 40 +
-        (trip.preferredAmenities.length + trip.preferredSignals.length) * 14 +
-        (trip.vibe ? 18 : 0) +
-        (trip.party ? 14 : 0) +
-        (trip.maxPrice !== null ? 6 : 0) +
-        15;
-      const fit_percent =
-        maxScore > 15
-          ? Math.max(1, Math.min(99, Math.round((score / maxScore) * 100)))
-          : undefined;
-
+      /*
+       * Match percentage measures how much of the traveler's
+       * stated request this hotel actually satisfies.
+       *
+       * Score decides ranking.
+       * fit_percent explains request coverage.
+       */
       const tradeoffs = matchEvidence
         .filter((item) => item.type !== "match")
         .map((item) => item.detail)
@@ -902,7 +1059,11 @@ export function rankHotels(
 type AIItem = { hotel_id: string; why_it_matches: string; things_to_know: string };
 
 /** AI can refine the shortlist but can only select IDs from the filtered catalog. */
-export async function refineWithAI(matches: Match[], request: TripRequest): Promise<{ matches: Match[]; enhanced: boolean }> {
+export async function refineWithAI(
+  matches: Match[],
+  request: TripRequest,
+  aiIntent?: AITripIntent,
+): Promise<{ matches: Match[]; enhanced: boolean }> {
   const key = process.env.OPENAI_API_KEY;
   if (!key || !matches.length) return { matches: matches.slice(0, 9), enhanced: false };
   const candidates = matches.slice(0, 12).map(({ hotel }) => ({
@@ -921,7 +1082,10 @@ export async function refineWithAI(matches: Match[], request: TripRequest): Prom
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
           instructions: "You are a concise hotel concierge. Rank only candidate hotel IDs, best first. Return up to 9 recommendations, including every candidate when there are 9 or fewer. Use only the provided hotel facts. Explain how each hotel fits the trip in one sentence. Mention a useful, factual trade-off from editorial_notes in things_to_know. Do not invent availability, verified prices, amenities, reviews, or neighborhood facts. Return JSON only.",
-          input: JSON.stringify({ trip: interpretTrip(request), candidates }),
+          input: JSON.stringify({
+            trip: interpretTrip(request, aiIntent),
+            candidates,
+          }),
           text: { format: { type: "json_schema", name: "hotel_recommendations", strict: true, schema: {
             type: "object", additionalProperties: false, properties: {
               recommendations: { type: "array", items: { type: "object", additionalProperties: false, properties: {

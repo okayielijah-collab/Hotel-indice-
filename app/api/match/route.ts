@@ -6,6 +6,10 @@ import { aiAllowed, interpretWithAI } from "@/lib/interpret";
 import { getHotelInventory } from "@/lib/inventory";
 import { getHotelProvider } from "@/lib/providers";
 import { normalizeProviderInventory } from "@/lib/providers/types";
+import {
+  findTripadvisorIdsForHotels,
+  getTripadvisorHotels,
+} from "@/lib/tripadvisor";
 
 export const runtime = "nodejs";
 
@@ -89,24 +93,83 @@ export async function POST(request: NextRequest) {
         ? providerResult.catalogHotels
         : catalog.hotels;
 
-    const ranked = rankHotels(hotelsForRanking, trip, inventory);
-    const result = useAI ? await refineWithAI(ranked, trip) : { matches: ranked.slice(0, 9), enhanced: false };
+    const ranked = rankHotels(
+      hotelsForRanking,
+      trip,
+      inventory,
+      ai?.intent,
+    );
 
-    const responseResult = providerResult?.catalogHotels?.length
-      ? {
-          ...result,
-          matches: result.matches.map((match) => ({
-            ...match,
-            liveRate: true,
-          })),
-        }
-      : result;
+    const result = useAI
+      ? await refineWithAI(ranked, trip, ai?.intent)
+      : { matches: ranked.slice(0, 9), enhanced: false };
+
+    // Tripadvisor is an enrichment layer, not the hotel inventory provider.
+    // Only enrich the hotels actually shown to the user.
+    let tripadvisorByHotelId = new Map<
+      string,
+      import("@/lib/tripadvisor").TripadvisorHotelSummary
+    >();
+
+    try {
+      const visibleHotels = result.matches
+        .map((match) => match.hotel)
+        .filter(Boolean)
+        .map((hotel) => ({
+          id: hotel.id,
+          name: hotel.name,
+          latitude: hotel.latitude,
+          longitude: hotel.longitude,
+        }));
+
+      const tripadvisorIds = await findTripadvisorIdsForHotels(visibleHotels);
+
+      if (tripadvisorIds.size) {
+        const summaries = await getTripadvisorHotels(
+          [...tripadvisorIds.values()],
+        );
+
+        const summariesByTripadvisorId = new Map(
+          summaries.map((summary) => [summary.id, summary]),
+        );
+
+        tripadvisorByHotelId = new Map(
+          [...tripadvisorIds.entries()]
+            .map(([hotelId, tripadvisorId]) => {
+              const summary = summariesByTripadvisorId.get(tripadvisorId);
+
+              return summary ? [hotelId, summary] : null;
+            })
+            .filter(
+              (
+                item,
+              ): item is [
+                string,
+                import("@/lib/tripadvisor").TripadvisorHotelSummary,
+              ] => Boolean(item),
+            ),
+        );
+      }
+    } catch (error) {
+      console.error("Tripadvisor enrichment unavailable:", error);
+    }
+
+    const enrichedMatches = result.matches.map((match) => ({
+      ...match,
+      liveRate: providerResult?.catalogHotels?.length
+        ? true
+        : undefined,
+      tripadvisor: tripadvisorByHotelId.get(match.hotel.id) || null,
+    }));
 
     return NextResponse.json({
-      ...responseResult,
+      ...result,
+      matches: enrichedMatches,
       total: ranked.length,
-      source: providerResult?.catalogHotels?.length ? "provider" : catalog.source,
-      interpreted: interpretTrip(trip),
+      source: providerResult?.catalogHotels?.length
+        ? "provider"
+        : catalog.source,
+      interpreted: interpretTrip(trip, ai?.intent),
       understood: ai?.understood || "",
     });
   } catch (error) {

@@ -18,6 +18,22 @@ export type Hotel = {
   editorial_notes: string;
   image_urls: string[];
   affiliate_booking_link: string;
+  tripadvisor?: {
+    id: number;
+    name: string;
+    rating: number | null;
+    reviewCount: number;
+    photoCount: number;
+    status: string | null;
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    tripadvisorUrl: string | null;
+    officialUrl: string | null;
+    starRating: number | null;
+    roomCount: number | null;
+    subratings: Record<string, number>;
+  };
 };
 
 export type Catalog = { hotels: Hotel[]; source: "supabase" | "demo" | "provider" };

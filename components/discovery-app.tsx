@@ -306,12 +306,44 @@ function HotelDetailDialog({
           </TabsList>
           <div className="detail-tab-body">
             <TabsContent value="ratings">
-              <p className="detail-row-label">Guest rating</p>
+              <p className="detail-row-label">Hotel rating</p>
               {ratingBar(hotel.rating)}
               <p className="detail-meta-line">
                 {hotel.review_count.toLocaleString()} reviews ·{" "}
                 {hotel.price_tier}
               </p>
+
+              {match?.tripadvisor && (
+                <div className="tripadvisor-detail">
+                  <div className="tripadvisor-detail-head">
+                    <div>
+                      <p className="detail-row-label">Tripadvisor</p>
+                      <strong className="tripadvisor-score">
+                        {match.tripadvisor.rating !== null
+                          ? match.tripadvisor.rating.toFixed(1)
+                          : "—"}
+                      </strong>
+                      <span className="tripadvisor-detail-meta">
+                        / 5 · {match.tripadvisor.reviewCount.toLocaleString()} reviews
+                      </span>
+                    </div>
+                  </div>
+
+                  {match.tripadvisor.subratings.length > 0 && (
+                    <div className="tripadvisor-subratings">
+                      {match.tripadvisor.subratings.map((rating) => (
+                        <div
+                          className="tripadvisor-subrating"
+                          key={rating.type}
+                        >
+                          <span>{rating.typeName}</span>
+                          <strong>{rating.rating.toFixed(1)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </TabsContent>
             <TabsContent value="info">
               <p className="hotel-location">
@@ -1431,6 +1463,23 @@ function HotelCard({
             <span key={tag}>{vibeLabels[tag] || tag}</span>
           ))}
         </div>
+
+        {match.tripadvisor && (
+          <div className="tripadvisor-signal">
+            <span className="tripadvisor-mark">TA</span>
+            <span>
+              <strong>
+                {match.tripadvisor.rating !== null
+                  ? match.tripadvisor.rating.toFixed(1)
+                  : "—"}
+              </strong>{" "}
+              Tripadvisor
+            </span>
+            <span className="tripadvisor-reviews">
+              {match.tripadvisor.reviewCount.toLocaleString()} reviews
+            </span>
+          </div>
+        )}
         <div className="match-copy">
           {match.why_it_matches ? (
             <>

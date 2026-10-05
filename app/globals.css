@@ -3702,3 +3702,78 @@ body > div:has(> [data-slot="select-content"]) { z-index: 400 !important; }
     grid-template-columns: 1fr !important;
   }
 }
+
+
+/* Tripadvisor trust signal */
+.tripadvisor-signal {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #5f625d;
+}
+
+.tripadvisor-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #34a853;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.tripadvisor-signal strong {
+  color: #22251f;
+}
+
+.tripadvisor-reviews {
+  color: #858980;
+}
+
+.tripadvisor-detail {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e7e8e3;
+}
+
+.tripadvisor-score {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.tripadvisor-detail-meta {
+  margin-left: 5px;
+  color: #777a73;
+  font-size: 13px;
+}
+
+.tripadvisor-subratings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.tripadvisor-subrating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #e8e9e5;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.tripadvisor-subrating span {
+  color: #666a62;
+}
+
+.tripadvisor-subrating strong {
+  color: #22251f;
+}
