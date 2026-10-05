@@ -20,7 +20,7 @@ type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities" | "match";
 
 const examples = [
   "A romantic weekend in Paris with a spa",
-  "A work-friendly stay in Lagos with fast Wi-Fi",
+  "A work trip to Lagos with fast wifi",
   "A quiet Bali escape with a pool under $180",
 ];
 const BINS = 12;
@@ -479,6 +479,8 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
   const [stripOpen, setStripOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
+  const [heroText, setHeroText] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [trip, setTrip] = useState<TripForm>(blankTrip);
   const [store, setStore] = useState<TripStore>({ trips: [], stays: [] });
@@ -694,6 +696,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
   async function runSearch(request: Record<string, unknown>, label: string): Promise<boolean> {
     if (asking) return false;
+    setEntered(true);
     setAsking(true);
     setAskError("");
     try {
@@ -812,6 +815,25 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         </div>
       </header>
 
+      {!entered && (
+        <section className="cc-hero">
+          <div className="cc-hero-inner">
+            <h1>Find the hotel that actually fits your trip.</h1>
+            <p>Tell us your vibe. We match you to a few stays and say why.</p>
+            <form className="cc-hero-form" onSubmit={(e) => { e.preventDefault(); if (heroText.trim()) void ask(heroText); }}>
+              <Search size={18} aria-hidden />
+              <input value={heroText} onChange={(e) => setHeroText(e.target.value)} placeholder="A quiet hotel in Lisbon with a pool under $150" aria-label="Describe your trip" />
+              <button type="submit" disabled={asking || !heroText.trim()}>{asking ? "Finding" : "Find stays"}</button>
+            </form>
+            <div className="cc-hero-chips">
+              {examples.slice(0, 3).map((ex) => <button type="button" key={ex} onClick={() => { setHeroText(ex); void ask(ex); }}>{ex}</button>)}
+            </div>
+            <button type="button" className="cc-hero-browse" onClick={() => setEntered(true)}>Or browse all {base.length} stays</button>
+          </div>
+        </section>
+      )}
+      {entered && (
+        <>
       <div className="cc-strip">
         <RangeStrip title="Price per night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
         <RangeStrip title="Rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
@@ -819,7 +841,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       </div>
 
       <div className="cc-views" role="group" aria-label="Switch view">
-        <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button>
+        <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>Search</button>
         <button type="button" aria-pressed={view === "map"} onClick={() => setView("map")}>Map</button>
       </div>
 
@@ -957,6 +979,8 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           )}
         </section>
       </div>
+        </>
+      )}
 
       {detail && (() => {
         const { hotel } = detail;
