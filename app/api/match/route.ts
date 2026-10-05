@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
             checkIn: trip.checkIn!,
             checkOut: trip.checkOut!,
             currency: "USD",
+          }).catch((error) => {
+            console.error("Live rates unavailable, using the saved catalog:", error);
+            return null;
           })
         : null;
 

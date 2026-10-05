@@ -25,6 +25,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   const [failed, setFailed] = useState(false);
   const locateRef = useRef<() => void>(() => undefined);
   const centeredOn = useRef<string | null>(null);
+  const drawRef = useRef<(() => void) | null>(null);
   const [locateNote, setLocateNote] = useState("");
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
@@ -83,32 +84,110 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   useEffect(() => {
     if (!ready || !map.current) return;
     let disposed = false;
+    let detach: (() => void) | null = null;
     import("leaflet").then((L) => {
-      if (disposed || !map.current) return;
-      markers.current.forEach((marker) => marker.remove());
-      markers.current = matches.map(({ hotel }) => {
-        const icon = L.divIcon({
-          className: "hotel-pin-wrap", iconSize: [80, 48], iconAnchor: [40, 48],
-          html: '<button type="button" class="hotel-pin"><span class="hotel-pin-price"></span><span class="hotel-pin-rating"></span></button>',
+      const instance = map.current;
+      if (disposed || !instance) return;
+
+      // Photo pins. Stays that would overlap on screen merge into one bubble with a count.
+      const draw = () => {
+        markers.current.forEach((marker) => marker.remove());
+        markers.current = [];
+        const selected = selectedIdRef.current;
+        const crowded = instance.getZoom() < 17;
+        const items = matches.map(({ hotel }) => ({
+          hotel,
+          point: instance.latLngToContainerPoint([hotel.latitude, hotel.longitude]),
+        }));
+        const used = new Set<string>();
+        const groups: Array<typeof items> = [];
+        items.forEach((item) => {
+          if (used.has(item.hotel.id)) return;
+          used.add(item.hotel.id);
+          const group = [item];
+          if (crowded && item.hotel.id !== selected) {
+            items.forEach((other) => {
+              if (used.has(other.hotel.id) || other.hotel.id === selected) return;
+              if (item.point.distanceTo(other.point) < 58) {
+                used.add(other.hotel.id);
+                group.push(other);
+              }
+            });
+          }
+          groups.push(group);
         });
-        const marker = L.marker([hotel.latitude, hotel.longitude], { icon, keyboard: false }).addTo(map.current!);
-        const pin = marker.getElement()?.querySelector("button");
-        if (pin) {
-          pin.querySelector(".hotel-pin-price")!.textContent = hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "See rate";
-          pin.querySelector(".hotel-pin-rating")!.textContent = `★ ${hotel.rating.toFixed(1)}`;
-          pin.setAttribute("aria-label", `${hotel.name}, ${hotel.estimated_price_per_night > 0 ? `${formatPrice(hotel.estimated_price_per_night)} per night` : "rate not shown"}, rated ${hotel.rating.toFixed(1)}`);
-          pin.classList.toggle("hotel-pin-selected", hotel.id === selectedIdRef.current);
-          pin.addEventListener("click", () => onSelectRef.current(hotel.id));
-        }
-        return marker;
-      });
+
+        groups.forEach((group) => {
+          if (group.length === 1) {
+            const { hotel } = group[0];
+            const on = hotel.id === selected;
+            const icon = L.divIcon({
+              className: "hp-wrap", iconSize: [64, 60], iconAnchor: [32, 60],
+              html: '<button type="button" class="hp-pin"><span class="hp-photo"></span><span class="hp-price"></span></button>',
+            });
+            const marker = L.marker([hotel.latitude, hotel.longitude], { icon, keyboard: false, zIndexOffset: on ? 1000 : 0 }).addTo(instance);
+            const pin = marker.getElement()?.querySelector("button");
+            if (pin) {
+              const photo = pin.querySelector<HTMLElement>(".hp-photo")!;
+              photo.textContent = hotel.name.trim().charAt(0).toUpperCase();
+              const url = hotel.image_urls?.[0];
+              if (url) {
+                const img = document.createElement("img");
+                img.src = url;
+                img.alt = "";
+                img.referrerPolicy = "no-referrer";
+                img.loading = "lazy";
+                img.onerror = () => img.remove();
+                photo.appendChild(img);
+              }
+              const price = hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "See rate";
+              pin.querySelector(".hp-price")!.textContent = price;
+              pin.setAttribute("aria-label", `${hotel.name}, ${price === "See rate" ? "rate not shown" : `${price} per night`}, rated ${hotel.rating.toFixed(1)}`);
+              pin.classList.toggle("hp-selected", on);
+              pin.addEventListener("click", () => onSelectRef.current(hotel.id));
+            }
+            markers.current.push(marker);
+          } else {
+            const prices = group.map(({ hotel }) => hotel.estimated_price_per_night).filter((value) => value > 0);
+            const lat = group.reduce((sum, { hotel }) => sum + hotel.latitude, 0) / group.length;
+            const lng = group.reduce((sum, { hotel }) => sum + hotel.longitude, 0) / group.length;
+            const icon = L.divIcon({
+              className: "hp-wrap", iconSize: [58, 58], iconAnchor: [29, 29],
+              html: '<button type="button" class="hp-cluster"><b></b><small></small></button>',
+            });
+            const marker = L.marker([lat, lng], { icon, keyboard: false }).addTo(instance);
+            const bubble = marker.getElement()?.querySelector("button");
+            if (bubble) {
+              bubble.querySelector("b")!.textContent = String(group.length);
+              bubble.querySelector("small")!.textContent = prices.length ? `from ${formatPrice(Math.min(...prices))}` : "stays";
+              bubble.setAttribute("aria-label", `${group.length} stays here. Zoom in to see them.`);
+              bubble.addEventListener("click", () =>
+                instance.fitBounds(
+                  L.latLngBounds(group.map(({ hotel }) => [hotel.latitude, hotel.longitude] as [number, number])),
+                  { padding: [70, 70], maxZoom: 17 },
+                ),
+              );
+            }
+            markers.current.push(marker);
+          }
+        });
+      };
+
+      instance.on("zoomend", draw);
+      drawRef.current = draw;
+      detach = () => {
+        instance.off("zoomend", draw);
+        if (drawRef.current === draw) drawRef.current = null;
+      };
+      draw();
+
       if (matches.length === 1) {
-        map.current.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 13);
+        instance.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 13);
       } else if (matches.length > 1) {
-        map.current.fitBounds(L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])), { padding: [65, 65], maxZoom: 14, animate: true });
+        instance.fitBounds(L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])), { padding: [65, 65], maxZoom: 14, animate: true });
       }
     }).catch((error) => { console.error("Map pins unavailable", error); setFailed(true); });
-    return () => { disposed = true; };
+    return () => { disposed = true; detach?.(); };
   }, [ready, matches, formatPrice]);
 
   useEffect(() => {
@@ -153,9 +232,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
-    markers.current.forEach((marker) => {
-      marker.getElement()?.querySelector("button")?.classList.toggle("hotel-pin-selected", matches.some(({ hotel }) => hotel.id === selectedId && hotel.latitude === marker.getLatLng().lat && hotel.longitude === marker.getLatLng().lng));
-    });
+    drawRef.current?.();
     if (!selectedId) { centeredOn.current = null; return; }
     // Centre the map once each time a different stay is picked (not on every filter change).
     if (selectedId !== centeredOn.current) {

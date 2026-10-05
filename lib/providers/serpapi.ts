@@ -54,6 +54,7 @@ type SerpApiProperty = {
 type SerpApiResponse = {
   properties?: SerpApiProperty[];
   error?: string;
+  serpapi_pagination?: { next_page_token?: string };
 };
 
 function parsePrice(property: SerpApiProperty): number | null {
@@ -337,21 +338,39 @@ export const serpApiProvider: HotelProvider = {
     url.searchParams.set("hl", "en");
     url.searchParams.set("api_key", apiKey);
 
-    const response = await fetch(url, {
-      cache: "no-store",
-    });
+    // Google returns about 20 stays per page. Read a second page too (set SERPAPI_MAX_PAGES=1 to turn off).
+    const maxPages = Math.min(3, Math.max(1, Number(process.env.SERPAPI_MAX_PAGES) || 2));
+    const properties: SerpApiProperty[] = [];
+    const seen = new Set<string>();
+    let pageUrl = url;
 
-    const data = (await response.json()) as SerpApiResponse;
+    for (let page = 0; page < maxPages; page++) {
+      let data: SerpApiResponse = {};
+      try {
+        const response = await fetchWithRetry(pageUrl);
+        data = (await response.json()) as SerpApiResponse;
+        if (!response.ok || data.error) {
+          throw new Error(data.error || `SERPAPI request failed (${response.status})`);
+        }
+      } catch (error) {
+        // The first page is required. If a later page fails, keep what we already have.
+        if (page === 0) throw error;
+        console.error("Extra results page unavailable:", error);
+        break;
+      }
 
-    if (!response.ok || data.error) {
-      throw new Error(
-        data.error || `SERPAPI request failed (${response.status})`,
-      );
+      for (const property of Array.isArray(data.properties) ? data.properties : []) {
+        const key = `${property.name ?? ""}|${property.gps_coordinates?.latitude ?? ""}|${property.gps_coordinates?.longitude ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        properties.push(property);
+      }
+
+      const token = data.serpapi_pagination?.next_page_token;
+      if (!token) break;
+      pageUrl = new URL(url.toString());
+      pageUrl.searchParams.set("next_page_token", token);
     }
-
-    const properties = Array.isArray(data.properties)
-      ? data.properties
-      : [];
 
     const catalogHotels = properties.map((property) =>
       toHotel(property, input.destination || ""),
@@ -367,3 +386,20 @@ export const serpApiProvider: HotelProvider = {
     };
   },
 };
+
+/** One quick retry, so a single slow connection does not blank the whole search. */
+async function fetchWithRetry(url: URL, attempts = 2): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      return await fetch(url, { cache: "no-store", signal: controller.signal });
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEven
 import { ArrowRight, ArrowUpRight, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Globe2, Heart, Map as MapIcon, MapPin, Moon, Search, SlidersHorizontal, Sparkles, Star, Sun, Trash2, X } from "lucide-react";
 import { MapView } from "@/components/map-view";
 import { amenityLabels, cities, vibeLabels, type Hotel, type PriceTier } from "@/lib/hotels";
+import { popularDestinations } from "@/lib/destinations";
 import type { Match } from "@/lib/matching";
 
 type Props = {
@@ -41,6 +42,41 @@ type TripForm = {
   amenities: string[];
 };
 const blankTrip: TripForm = { destination: "", checkIn: "", checkOut: "", adults: 2, children: 0, budget: "Any", vibe: "", amenities: [] };
+
+/** Three or more words reads as a described stay, not a hotel name. */
+const isSentence = (text: string) => text.trim().split(/\s+/).filter(Boolean).length >= 3;
+
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const plusDays = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return isoDay(d);
+};
+const shortDate = (iso: string) =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+/** Card photo with a calm placeholder, so a dead image link never shows as a grey box. */
+function HotelPhoto({ src, name, eager }: { src?: string; name: string; eager: boolean }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <span className="cc-photo-fallback" aria-hidden>
+        {name.trim().charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={`Illustrative view for ${name}`}
+      referrerPolicy="no-referrer"
+      loading={eager ? "eager" : "lazy"}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 type LastSearch = { kind: "trip"; trip: TripForm } | { kind: "text"; query: string; destination: string };
 
@@ -233,7 +269,7 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
             const known = cities.find((city) => city.toLowerCase() === typed.toLowerCase());
             if ((known || typed) !== trip.destination) update({ destination: known || typed });
           }} />
-        <datalist id={`${id}-cities`}>{cities.map((city) => <option key={city} value={city} />)}</datalist>
+        <datalist id={`${id}-cities`}>{popularDestinations.map((place) => <option key={place.name} value={place.name}>{place.country}</option>)}</datalist>
       </div>
 
       <div className={`ccb-field ccb-pop ccb-dates${open === "dates" ? " is-open" : ""}`}>
@@ -391,6 +427,21 @@ function fitLine(match: Match): string {
   return (matched.length ? matched : fromData).slice(0, 3).join(" · ");
 }
 
+type CatchInfo = { kind: "caution" | "unverified" | "note"; text: string; label: string };
+
+/** Splits "what to know" into a real drawback, an unverified wish, or a plain note. */
+function catchInfo(match: Match): CatchInfo | null {
+  const reality = (match.evidence ?? []).find((item) => item.type !== "match");
+  if (reality) {
+    if ((reality.detail ?? "").includes("does not provide enough evidence")) {
+      return { kind: "unverified", text: "", label: reality.label };
+    }
+    return { kind: "caution", text: reality.detail ? `${reality.label}: ${reality.detail}` : reality.label, label: reality.label };
+  }
+  const text = catchLine(match);
+  return text ? { kind: "note", text, label: "" } : null;
+}
+
 function catchLine(match: Match): string {
   const reality = (match.evidence ?? []).find((item) => item.type !== "match");
   if (reality) return reality.detail ? `${reality.label}: ${reality.detail}` : reality.label;
@@ -405,6 +456,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
 
   const [query, setQuery] = useState("");
+  const [rateDates, setRateDates] = useState<{ checkIn: string; checkOut: string; chosen: boolean } | null>(null);
   const [city, setCity] = useState("");
   const [tierSet, setTierSet] = useState<PriceTier[]>([]);
   const [vibe, setVibe] = useState("");
@@ -556,7 +608,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const out = pool.filter(({ hotel }) => {
-      if (q && !`${hotel.name} ${hotel.city} ${hotel.country}`.toLowerCase().includes(q)) return false;
+      if (q && !isSentence(q) && !`${hotel.name} ${hotel.city} ${hotel.country}`.toLowerCase().includes(q)) return false;
       if (city && hotel.city !== city) return false;
       if (tierSet.length && !tierSet.includes(hotel.price_tier)) return false;
       if (vibe && !hotel.vibe_tags.includes(vibe)) return false;
@@ -574,6 +626,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     return sorted;
   }, [pool, query, city, tierSet, vibe, amenities, priceRange, ratingRange, reviewRange, sort]);
 
+  const unverifiedNotes = useMemo(() => {
+    const counts = new Map<string, number>();
+    shown.forEach((match) => {
+      const info = catchInfo(match);
+      if (info?.kind === "unverified") counts.set(info.label, (counts.get(info.label) ?? 0) + 1);
+    });
+    return [...counts.entries()].slice(0, 2);
+  }, [shown]);
+
   const priceValues = useMemo(() => pool.map((m) => m.hotel.estimated_price_per_night).filter((p) => p > 0), [pool]);
   const ratingValues = useMemo(() => pool.map((m) => m.hotel.rating), [pool]);
   const reviewValues = useMemo(() => pool.map((m) => m.hotel.review_count), [pool]);
@@ -584,7 +645,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const comparing = useMemo(() => compareIds.map((id) => findMatch(id)).filter((m): m is Match => Boolean(m)), [compareIds, findMatch]);
 
   const filtersActive = Boolean(
-    query || city || tierSet.length || vibe || amenities.length ||
+    (query && !isSentence(query)) || city || tierSet.length || vibe || amenities.length ||
     !sameRange(priceRange, priceLimits) || !sameRange(ratingRange, ratingLimits) || !sameRange(reviewRange, reviewLimits),
   );
 
@@ -598,7 +659,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const toggleCompare = useCallback((id: string) => {
     setCompareIds((current) => {
       if (current.includes(id)) return current.filter((v) => v !== id);
-      if (current.length >= 2) return current;
+      if (current.length >= 4) return current;
       return [...current, id];
     });
   }, []);
@@ -636,7 +697,9 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     setAsking(true);
     setAskError("");
     try {
-      const response = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
+      const chosenDates = Boolean(request.checkIn && request.checkOut);
+      const sent: Record<string, unknown> = chosenDates ? request : { ...request, checkIn: plusDays(30), checkOut: plusDays(32) };
+      const response = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sent) });
       const data = (await response.json()) as MatchResponse;
       if (!response.ok) throw new Error(data.error || "We couldn't find stays right now.");
       if (data.notice && data.matches.length === 0) {
@@ -645,6 +708,14 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         return false;
       }
       setAiMatches(data.matches);
+      setRateDates({ checkIn: String(sent.checkIn), checkOut: String(sent.checkOut), chosen: chosenDates });
+      if (!request.destination && data.matches.length) {
+        const found = new Set(data.matches.map((m) => m.hotel.city));
+        if (found.size === 1) {
+          const only = [...found][0];
+          setTrip((current) => ({ ...current, destination: only }));
+        }
+      }
       setAiQuery(data.understood || label);
       setAiUsed(Boolean(data.enhanced));
       resetRanges();
@@ -756,8 +827,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         <section className="cc-list-col" aria-label="Hotels">
           <label className="cc-search">
             <Search size={16} aria-hidden />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${base.length} hotels by name or city`} aria-label="Search hotels by name or city" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && isSentence(query)) { e.preventDefault(); void ask(query); } }}
+              placeholder="Search by name or city, or describe your stay"
+              aria-label="Search hotels by name or city, or describe your stay and press Enter"
+            />
           </label>
+          {isSentence(query) && <p className="cc-count" style={{ paddingLeft: 12 }}>{asking ? "Finding stays that fit..." : "Press Enter to find stays that fit this"}</p>}
           {!aiMatches && store.trips.length > 0 && (
             <div className="cc-resume">
               <span>Pick up where you left off</span>
@@ -779,10 +857,21 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           )}
 
           {!catalogError && (
-            <p className="cc-count" aria-live="polite">
+            <p className="cc-count" aria-live="polite" style={{ paddingLeft: 12 }}>
               {filtersActive ? `${shown.length} of ${pool.length} stays` : `${shown.length} ${shown.length === 1 ? "stay" : "stays"}`}
             </p>
           )}
+          {!catalogError && aiMatches && rateDates && shown.length > 0 && (
+            <p className="cc-listnote">
+              Live rates for {shortDate(rateDates.checkIn)} to {shortDate(rateDates.checkOut)}.
+              {rateDates.chosen ? "" : " You have not picked dates yet, so we used these. Add yours above to see your own."}
+            </p>
+          )}
+          {!catalogError && unverifiedNotes.map(([label, count]) => (
+            <p className="cc-listnote" key={label}>
+              We could not confirm {label.toLowerCase()} for {count} of {shown.length} stays. Their listings do not say either way.
+            </p>
+          ))}
           <div className="cc-list" ref={listRef}>
             {catalogError && <div className="cc-empty" role="alert">{catalogError}</div>}
             {!catalogError && shown.length === 0 && (
@@ -795,12 +884,11 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               const { hotel, fit_percent } = match;
               const picked = compareIds.includes(hotel.id);
               const fit = fitLine(match);
-              const catchText = catchLine(match);
+              const info = catchInfo(match);
               return (
                 <article key={hotel.id} className="cc-card" data-hotel={hotel.id} aria-current={selectedId === hotel.id}>
                   <button type="button" className="cc-card-media" onClick={() => openHotel(hotel.id)} aria-label={`View details of ${hotel.name}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={hotel.image_urls[0]} alt={`Illustrative view for ${hotel.name}`} loading={index > 2 ? "lazy" : "eager"} />
+                    <HotelPhoto src={hotel.image_urls[0]} name={hotel.name} eager={index < 18} />
                     <span className="cc-rank">{String(index + 1).padStart(2, "0")}{typeof fit_percent === "number" ? <i>{fit_percent}% match</i> : null}</span>
                     <span className="cc-score"><Star size={12} fill="currentColor" aria-hidden /> {hotel.rating.toFixed(1)}{hotel.review_count > 0 ? <small>({hotel.review_count.toLocaleString("en-US")})</small> : null}</span>
                   </button>
@@ -811,7 +899,9 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                     <p className="cc-card-city"><MapPin size={12} aria-hidden /> {hotel.city}, {hotel.country}</p>
                     <button type="button" className="cc-card-name" onClick={() => openHotel(hotel.id)}>{hotel.name}</button>
                     {fit && <p className="cc-fit"><i aria-hidden>✓</i><span>{fit}</span></p>}
-                    {catchText && <p className="cc-catch"><i aria-hidden>!</i><span>{catchText}</span></p>}
+                    {info?.kind === "caution" && <p className="cc-catch"><i aria-hidden>!</i><span>{info.text}</span></p>}
+                    {info?.kind === "unverified" && <p className="cc-unsure">{info.label} not confirmed</p>}
+                    {info?.kind === "note" && <p className="cc-note-line">{info.text}</p>}
                     <div className="cc-card-foot">
                       <div className="cc-card-price">
                         {hotel.estimated_price_per_night > 0
@@ -819,7 +909,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                           : <><b>Rate not shown</b><small>check the booking site</small></>}
                       </div>
                       <div className="cc-card-actions">
-                        <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 2 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? "Comparing" : "Compare"}</button>
+                        <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 4 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? "Comparing" : "Compare"}</button>
                         <button type="button" className="cc-book-btn" onClick={() => openBooking(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>Check rates <ArrowUpRight size={13} aria-hidden /></button>
                       </div>
                     </div>
@@ -835,11 +925,11 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             )}
           </div>
 
-          {compareIds.length === 2 && (
+          {compareIds.length >= 2 && (
             <div className="cc-tray">
               <div className="cc-tray-copy">
-                <strong>2 stays selected</strong>
-                <span>{comparing.map((m) => m.hotel.name).join(" · ")}</span>
+                <strong>{compareIds.length} stays selected</strong>
+                <span>{comparing.length > 2 ? `${comparing[0].hotel.name} and ${comparing.length - 1} more` : comparing.map((m) => m.hotel.name).join(" and ")}</span>
               </div>
               <button type="button" className="cc-tray-go" onClick={() => setCompareOpen(true)}>Compare stays <ArrowRight size={14} aria-hidden /></button>
             </div>
@@ -940,18 +1030,19 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
       {compareOpen && (
         <div className="cc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setCompareOpen(false); }}>
-          <div className="cc-modal cc-compare-modal" role="dialog" aria-modal="true" aria-label="Compare stays">
+          <div className="cc-modal cc-compare-modal" data-count={comparing.length} role="dialog" aria-modal="true" aria-label="Compare stays">
             <button type="button" className="cc-modal-x" onClick={() => setCompareOpen(false)} aria-label="Close"><X size={18} /></button>
             <h2>Compare stays</h2>
             <p className="cc-meta">Compare the details that matter for your trip side by side.</p>
-            <div className="cc-compare-grid">
+            <div className="cc-compare-grid" data-count={comparing.length}>
               {comparing.map((match) => {
                 const { hotel } = match;
                 const isRoom = (label: string) => label.toLowerCase().startsWith("room ≥");
                 const matched = match.evidence?.filter((item) => item.type === "match") ?? [];
                 const reality = match.evidence?.filter((item) => item.type !== "match") ?? [];
                 const room = matched.find((item) => isRoom(item.label));
-                const fits = matched.filter((item) => !isRoom(item.label)).slice(0, 3);
+                const compact = comparing.length > 2;
+                const fits = matched.filter((item) => !isRoom(item.label)).slice(0, compact ? 2 : 3);
                 return (
                   <section className="cc-cmp" key={hotel.id}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -972,17 +1063,17 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                       </div>
                       <div className="cc-cmp-sec">
                         <p className="cc-label">Amenities</p>
-                        <div className="cc-chips">{hotel.amenities.length ? hotel.amenities.slice(0, 6).map((a) => <span key={a} className="cc-chip">{amenityLabels[a] ?? a}</span>) : <span className="cc-chip">No verified amenities listed</span>}</div>
+                        <div className="cc-chips">{hotel.amenities.length ? hotel.amenities.slice(0, compact ? 4 : 6).map((a) => <span key={a} className="cc-chip">{amenityLabels[a] ?? a}</span>) : <span className="cc-chip">No verified amenities listed</span>}</div>
                       </div>
                       <div className="cc-cmp-sec">
                         <p className="cc-label">Why it fits</p>
                         <p className="cc-meta">{fits.map((item) => item.label).join(" · ") || "Matches several parts of your trip."}</p>
-                        {fits.map((item) => <div className="cc-cmp-item" key={`${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)}
+                        {!compact && fits.map((item) => <div className="cc-cmp-item" key={`${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)}
                       </div>
                       <div className="cc-cmp-sec">
                         <p className="cc-label">Reality Check</p>
                         {reality.length > 0
-                          ? reality.slice(0, 4).map((item) => <div className="cc-cmp-item" key={`${item.type}-${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)
+                          ? reality.slice(0, compact ? 2 : 4).map((item) => <div className="cc-cmp-item" key={`${item.type}-${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)
                           : <div className="cc-cmp-item"><strong>Available context</strong><span>{match.things_to_know}</span></div>}
                       </div>
                       <button type="button" className="cc-book-btn cc-cmp-book" onClick={() => { setCompareOpen(false); openBooking(hotel.id); }}>Check rates &amp; book <ArrowUpRight size={15} aria-hidden /></button>

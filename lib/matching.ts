@@ -1,3 +1,4 @@
+import { popularDestinations } from "@/lib/destinations";
 import type { Hotel, PriceTier } from "@/lib/hotels";
 import { HotelInventory, roomMeetsRequirements } from "@/lib/inventory";
 import { amenityLabels, cities, vibeLabels } from "@/lib/hotels";
@@ -375,7 +376,8 @@ export function interpretTrip(request: TripRequest) {
     aliases[city]?.some((alias) => containsTerm(q, alias)),
   );
 
-  const destination = request.destination || foundCity || "";
+  const foundPopular = popularDestinations.find((place) => containsTerm(q, place.name.toLowerCase()))?.name;
+  const destination = request.destination || foundCity || foundPopular || "";
 
   const mentionedAmenities = Object.entries(amenityWords)
     .filter(([, words]) =>
