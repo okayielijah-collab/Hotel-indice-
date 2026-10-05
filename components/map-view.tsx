@@ -246,6 +246,14 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
     }
   }, [selectedId, matches]);
 
+  // The map sits in a hidden panel on phones. Tell Leaflet whenever its box changes size.
+  useEffect(() => {
+    if (!ready || !container.current || typeof ResizeObserver === "undefined") return;
+    const watcher = new ResizeObserver(() => map.current?.invalidateSize());
+    watcher.observe(container.current);
+    return () => watcher.disconnect();
+  }, [ready]);
+
   const locateMe = () => {
     if (!map.current) return;
     const say = (message: string) => { setLocateNote(message); window.setTimeout(() => setLocateNote(""), 5000); };

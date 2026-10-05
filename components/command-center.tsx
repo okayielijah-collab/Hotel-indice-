@@ -5,6 +5,7 @@ import { ArrowRight, ArrowUpRight, Bookmark, CalendarDays, ChevronDown, ChevronL
 import { MapView } from "@/components/map-view";
 import { amenityLabels, cities, vibeLabels, type Hotel, type PriceTier } from "@/lib/hotels";
 import { popularDestinations } from "@/lib/destinations";
+import { interpretTrip } from "@/lib/matching";
 import type { Match } from "@/lib/matching";
 
 type Props = {
@@ -13,7 +14,16 @@ type Props = {
   catalogError?: string;
 };
 
-type MatchResponse = { matches: Match[]; error?: string; enhanced?: boolean; understood?: string; notice?: string };
+type InterpretedTrip = ReturnType<typeof interpretTrip>;
+
+type MatchResponse = {
+  matches: Match[];
+  error?: string;
+  enhanced?: boolean;
+  understood?: string;
+  interpreted?: InterpretedTrip;
+  notice?: string;
+};
 type SortKey = "match" | "price_asc" | "price_desc" | "rating";
 type Range = [number, number];
 type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities" | "match";
@@ -45,6 +55,43 @@ const blankTrip: TripForm = { destination: "", checkIn: "", checkOut: "", adults
 
 /** Three or more words reads as a described stay, not a hotel name. */
 const isSentence = (text: string) => text.trim().split(/\s+/).filter(Boolean).length >= 3;
+
+const signalLabels: Record<string, string> = {
+  near_restaurants: "Near restaurants",
+  central: "Central",
+  near_beach: "Near the beach",
+  quiet: "Quiet",
+  good_room: "Good room",
+  romantic: "Romantic",
+  family_suitable: "Family-friendly",
+  work_friendly: "Work-friendly",
+  walkable: "Walkable",
+};
+
+const partyLabels: Record<string, string> = {
+  couple: "Couple",
+  family: "Family",
+  solo: "Solo",
+  business: "Work trip",
+};
+
+function intelligenceLabel(signal: string) {
+  return signalLabels[signal] || signal.replace(/_/g, " ");
+}
+
+function tripPurposeLabel(intent: InterpretedTrip) {
+  if (intent.purpose) {
+    return intent.purpose
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  if (intent.vibe && vibeLabels[intent.vibe]) {
+    return vibeLabels[intent.vibe];
+  }
+
+  return "";
+}
 
 const isoDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -219,7 +266,7 @@ function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone }: { checkIn
         ))}
       </div>
       <div className="ccb-cal-foot">
-        <span>{checkIn ? `${dayLabel(checkIn)}${checkOut ? ` to ${dayLabel(checkOut)}` : " - choose check out"}` : "Choose check in, then check out"}</span>
+        <span>{checkIn ? `${dayLabel(checkIn)}${checkOut ? ` to ${dayLabel(checkOut)}` : ". Choose check out"}` : "Choose check in, then check out"}</span>
         <div>
           <button type="button" className="ccb-link" onClick={onClear}>Clear dates</button>
           <button type="button" className="ccb-done" onClick={onDone}>Done</button>
@@ -393,14 +440,29 @@ function RangeStrip({ title, summary, values, limits, range, step, onChange, lab
   const [min, max] = limits;
   const span = Math.max(max - min, 1e-9);
   const bins = useMemo(() => {
-    const counts = new Array<number>(BINS).fill(0);
-    values.forEach((v) => { counts[Math.min(BINS - 1, Math.max(0, Math.floor(((v - min) / span) * BINS)))] += 1; });
-    const peak = Math.max(...counts, 1);
-    return counts.map((count, i) => {
-      const mid = min + ((i + 0.5) / BINS) * span;
-      return { h: Math.max(8, (count / peak) * 100), on: mid >= range[0] && mid <= range[1] };
+    const density = new Array<number>(BINS).fill(0);
+    const bandwidth = Math.max(span / 9, step * 2);
+
+    values.forEach((value) => {
+      for (let i = 0; i < BINS; i++) {
+        const mid = min + ((i + 0.5) / BINS) * span;
+        const distance = (mid - value) / bandwidth;
+        density[i] += Math.exp(-0.5 * distance * distance);
+      }
     });
-  }, [values, min, span, range]);
+
+    const peak = Math.max(...density, 1);
+
+    return density.map((count, i) => {
+      const mid = min + ((i + 0.5) / BINS) * span;
+      const normalized = count / peak;
+
+      return {
+        h: 2 + Math.pow(normalized, 0.85) * 62,
+        on: mid >= range[0] && mid <= range[1],
+      };
+    });
+  }, [values, min, span, range, step]);
   const left = ((range[0] - min) / span) * 100;
   const right = ((range[1] - min) / span) * 100;
   return (
@@ -465,6 +527,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
   const [aiMatches, setAiMatches] = useState<Match[] | null>(null);
   const [aiQuery, setAiQuery] = useState("");
+  const [interpretedTrip, setInterpretedTrip] = useState<InterpretedTrip | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [askText, setAskText] = useState("");
   const [asking, setAsking] = useState(false);
@@ -480,6 +543,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [view, setView] = useState<"list" | "map">("list");
   const [stripOpen, setStripOpen] = useState(false);
   const [entered, setEntered] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
   const [heroText, setHeroText] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [trip, setTrip] = useState<TripForm>(blankTrip);
@@ -697,6 +761,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   async function runSearch(request: Record<string, unknown>, label: string): Promise<boolean> {
     if (asking) return false;
     setEntered(true);
+    setPlannerOpen(false);
     setAsking(true);
     setAskError("");
     try {
@@ -720,6 +785,16 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         }
       }
       setAiQuery(data.understood || label);
+      setInterpretedTrip(data.interpreted || interpretTrip({
+        destination: String(request.destination ?? ""),
+        party: String(request.party ?? ""),
+        vibe: String(request.vibe ?? ""),
+        budget: (request.budget as PriceTier | "Any") || "Any",
+        amenities: Array.isArray(request.amenities) ? request.amenities.map(String) : [],
+        query: String(request.query ?? label),
+        checkIn: String(sent.checkIn ?? ""),
+        checkOut: String(sent.checkOut ?? ""),
+      }));
       setAiUsed(Boolean(data.enhanced));
       resetRanges();
       setQuery("");
@@ -795,7 +870,12 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"}>
       <header className="cc-head">
         <div className="cc-brand"><span className="cc-brand-mark" aria-hidden>H</span><span>Hotel <em>Indice</em></span></div>
-        <div className="cc-head-search"><HeaderSearch trip={trip} setTrip={setTrip} onSubmit={searchTrip} busy={asking} /></div>
+        <div className="cc-head-search" data-open={plannerOpen ? "true" : "false"}>
+          <button type="button" className="cc-plan-toggle" aria-expanded={plannerOpen} onClick={() => setPlannerOpen((open) => !open)}>
+            <Search size={16} aria-hidden /><b>{trip.destination || "Anywhere"}</b><span>{trip.adults || 2} adults</span><ChevronDown size={16} aria-hidden />
+          </button>
+          <HeaderSearch trip={trip} setTrip={setTrip} onSubmit={searchTrip} busy={asking} />
+        </div>
         <div className="cc-head-end" aria-live="polite">
           <button type="button" className="cc-theme" onClick={switchTheme} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
             {theme === "dark" ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
@@ -835,8 +915,8 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       {entered && (
         <>
       <div className="cc-strip">
-        <RangeStrip title="Price per night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
-        <RangeStrip title="Rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
+        <RangeStrip title="Price / night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
+        <RangeStrip title="Guest rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
         <RangeStrip title="Reviews" label="review count" summary={`${reviewRange[0].toLocaleString("en-US")} to ${reviewRange[1].toLocaleString("en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
       </div>
 
@@ -871,11 +951,98 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             </div>
           )}
           {aiMatches && (
-            <span className="cc-ai-tag" title={aiUsed ? "Matched with AI" : "Matched by keywords"}><Sparkles size={12} aria-hidden /> Matched to: {aiQuery.length > 60 ? `${aiQuery.slice(0, 60)}...` : aiQuery}
-              {currentTripId && (() => { const isSaved = store.trips.find((item) => item.id === currentTripId)?.saved ?? false; return <button type="button" className="cc-savetrip" aria-pressed={isSaved} onClick={() => toggleSaveTrip(currentTripId)}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} aria-hidden /> {isSaved ? "Saved" : "Save trip"}</button>; })()}
-              {lastSearch && <button type="button" className="cc-savetrip" onClick={shareSearch}>{shareNote || "Share"}</button>}
-              <button type="button" onClick={() => { setAiMatches(null); setAiQuery(""); resetRanges(); setCurrentTripId(null); setLastSearch(null); }} aria-label="Clear AI matches"><X size={12} /></button>
-            </span>
+            <section className="cc-understanding" aria-label="Trip intelligence">
+              <div className="cc-understanding-head">
+                <div>
+                  <span className="cc-understanding-eyebrow">
+                    <Sparkles size={12} aria-hidden /> INDICE UNDERSTANDS
+                  </span>
+
+                  <div className="cc-understanding-title">
+                    {interpretedTrip && [
+                      tripPurposeLabel(interpretedTrip),
+                      interpretedTrip.destination,
+                      interpretedTrip.party ? partyLabels[interpretedTrip.party] || interpretedTrip.party : "",
+                    ].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+
+                <div className="cc-understanding-actions">
+                  {currentTripId && (() => {
+                    const isSaved = store.trips.find((item) => item.id === currentTripId)?.saved ?? false;
+                    return (
+                      <button
+                        type="button"
+                        className="cc-savetrip"
+                        aria-pressed={isSaved}
+                        onClick={() => toggleSaveTrip(currentTripId)}
+                      >
+                        <Bookmark size={12} fill={isSaved ? "currentColor" : "none"} aria-hidden />
+                        {isSaved ? "Saved" : "Save trip"}
+                      </button>
+                    );
+                  })()}
+
+                  {lastSearch && (
+                    <button type="button" className="cc-savetrip" onClick={shareSearch}>
+                      {shareNote || "Share"}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="cc-understanding-close"
+                    onClick={() => {
+                      setAiMatches(null);
+                      setAiQuery("");
+                      setInterpretedTrip(null);
+                      resetRanges();
+                      setCurrentTripId(null);
+                      setLastSearch(null);
+                    }}
+                    aria-label="Clear trip intelligence"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              </div>
+
+              {interpretedTrip && (
+                <div className="cc-understanding-tags">
+                  {(interpretedTrip.maxPrice !== null || interpretedTrip.budget !== "Any") && (
+                    <span className="cc-understanding-tag strong">
+                      {interpretedTrip.maxPrice !== null
+                        ? `Under $${interpretedTrip.maxPrice}/night`
+                        : interpretedTrip.budget}
+                    </span>
+                  )}
+
+                  {interpretedTrip.requiredSignals.map((signal) => (
+                    <span className="cc-understanding-tag strong" key={`required-signal-${signal}`}>
+                      {intelligenceLabel(signal)}
+                    </span>
+                  ))}
+
+                  {interpretedTrip.preferredSignals.map((signal) => (
+                    <span className="cc-understanding-tag" key={`preferred-signal-${signal}`}>
+                      {intelligenceLabel(signal)}
+                    </span>
+                  ))}
+
+                  {interpretedTrip.requiredAmenities.map((amenity) => (
+                    <span className="cc-understanding-tag strong" key={`required-amenity-${amenity}`}>
+                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                    </span>
+                  ))}
+
+                  {interpretedTrip.preferredAmenities.map((amenity) => (
+                    <span className="cc-understanding-tag" key={`preferred-amenity-${amenity}`}>
+                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
           {!catalogError && (
@@ -883,17 +1050,6 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               {filtersActive ? `${shown.length} of ${pool.length} stays` : `${shown.length} ${shown.length === 1 ? "stay" : "stays"}`}
             </p>
           )}
-          {!catalogError && aiMatches && rateDates && shown.length > 0 && (
-            <p className="cc-listnote">
-              Live rates for {shortDate(rateDates.checkIn)} to {shortDate(rateDates.checkOut)}.
-              {rateDates.chosen ? "" : " You have not picked dates yet, so we used these. Add yours above to see your own."}
-            </p>
-          )}
-          {!catalogError && unverifiedNotes.map(([label, count]) => (
-            <p className="cc-listnote" key={label}>
-              We could not confirm {label.toLowerCase()} for {count} of {shown.length} stays. Their listings do not say either way.
-            </p>
-          ))}
           <div className="cc-list" ref={listRef}>
             {catalogError && <div className="cc-empty" role="alert">{catalogError}</div>}
             {!catalogError && shown.length === 0 && (
@@ -920,6 +1076,38 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                   <div className="cc-card-body">
                     <p className="cc-card-city"><MapPin size={12} aria-hidden /> {hotel.city}, {hotel.country}</p>
                     <button type="button" className="cc-card-name" onClick={() => openHotel(hotel.id)}>{hotel.name}</button>
+
+                  {match.tripadvisor && (
+                    <div
+                      className="cc-tripadvisor"
+                      aria-label={`Tripadvisor Traveler Rating ${match.tripadvisor.rating ?? "not available"} from ${match.tripadvisor.reviewCount.toLocaleString("en-US")} reviews`}
+                    >
+                      <span className="cc-tripadvisor-brand">Tripadvisor</span>
+
+                      {match.tripadvisor.ratingIconUrl ? (
+                        <img
+                          className="cc-tripadvisor-bubbles"
+                          src={match.tripadvisor.ratingIconUrl}
+                          alt={
+                            match.tripadvisor.rating !== null
+                              ? `Tripadvisor Traveler Rating ${match.tripadvisor.rating.toFixed(1)} out of 5`
+                              : "Tripadvisor Traveler Rating"
+                          }
+                        />
+                      ) : (
+                        <strong>
+                          {match.tripadvisor.rating !== null
+                            ? match.tripadvisor.rating.toFixed(1)
+                            : "—"}
+                        </strong>
+                      )}
+
+                      <span>
+                        {match.tripadvisor.reviewCount.toLocaleString("en-US")} reviews
+                      </span>
+                    </div>
+                  )}
+
                     {fit && <p className="cc-fit"><i aria-hidden>✓</i><span>{fit}</span></p>}
                     {info?.kind === "caution" && <p className="cc-catch"><i aria-hidden>!</i><span>{info.text}</span></p>}
                     {info?.kind === "unverified" && <p className="cc-unsure">{info.label} not confirmed</p>}
@@ -961,6 +1149,24 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         <section className="cc-map-col" aria-label="Map">
           <MapView matches={shown} selectedId={selectedId} onSelect={pickOnMap} formatPrice={formatPrice} />
           <div className="cc-vignette" aria-hidden />
+          {(() => {
+            const picked = findMatch(selectedId);
+            if (!picked) return null;
+            const stay = picked.hotel;
+            return (
+              <div className="cc-map-card">
+                <button type="button" className="cc-map-card-main" onClick={() => openHotel(stay.id)}>
+                  <span className="cc-map-card-photo" style={stay.image_urls[0] ? { backgroundImage: `url("${stay.image_urls[0]}")` } : undefined} />
+                  <span className="cc-map-card-text">
+                    <strong>{stay.name}</strong>
+                    <small>{stay.city}</small>
+                    <small>{stay.estimated_price_per_night > 0 ? `${formatPrice(stay.estimated_price_per_night)} a night` : "See rate"} and {stay.rating.toFixed(1)} stars</small>
+                  </span>
+                </button>
+                <button type="button" className="cc-map-card-go" onClick={() => openBooking(stay.id)}>Check rates</button>
+              </div>
+            );
+          })()}
 
           {askOpen && (
             <div className="cc-ask" role="dialog" aria-label="Describe your trip">
@@ -1007,9 +1213,71 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               </div>
               <div className="cc-tab-body" role="tabpanel">
                 {active === "ratings" && (<>
-                  <p className="cc-label">Guest rating</p>
+                  <p className="cc-label">Hotel Indice rating</p>
                   <div className="cc-ratingbar"><div style={{ width: `${Math.max(0, Math.min(100, (hotel.rating / 5) * 100))}%` }} /><span>{hotel.rating.toFixed(1)}</span></div>
                   <p className="cc-meta">{hotel.review_count.toLocaleString("en-US")} reviews · {hotel.price_tier}</p>
+
+                  {detail.tripadvisor && (
+                    <div className="cc-ta-panel">
+                      <div className="cc-ta-panel-head">
+                        <div>
+                          <p className="cc-label">Tripadvisor Traveler Rating</p>
+                          <div className="cc-ta-score">
+                  {detail.tripadvisor.ratingIconUrl ? (
+                    <img
+                      className="cc-ta-bubbles"
+                      src={detail.tripadvisor.ratingIconUrl}
+                      alt={
+                        detail.tripadvisor.rating !== null
+                          ? `Tripadvisor Traveler Rating ${detail.tripadvisor.rating.toFixed(1)} out of 5`
+                          : "Tripadvisor Traveler Rating"
+                      }
+                    />
+                  ) : (
+                    <strong>
+                      {detail.tripadvisor.rating !== null
+                        ? detail.tripadvisor.rating.toFixed(1)
+                        : "—"}
+                    </strong>
+                  )}
+
+                  <span>
+                    {detail.tripadvisor.reviewCount.toLocaleString("en-US")} reviews
+                  </span>
+                  <small className="cc-ta-updated">
+                    Updated {new Date().toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </small>
+                </div>
+                        </div>
+                      </div>
+
+                      {detail.tripadvisor.subratings.length > 0 && (
+                        <div className="cc-ta-subratings">
+                          {detail.tripadvisor.subratings.slice(0, 4).map((item) => (
+                            <div key={item.type}>
+                              <span>{item.typeName}</span>
+                              <strong>{item.rating.toFixed(1)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {detail.tripadvisor.url && (
+                        <a
+                          className="cc-ta-link"
+                          href={detail.tripadvisor.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View on Tripadvisor ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </>)}
                 {active === "info" && (<>
                   <p className="cc-meta"><MapPin size={13} aria-hidden /> {hotel.city}, {hotel.country}</p>
