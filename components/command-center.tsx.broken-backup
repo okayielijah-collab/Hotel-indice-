@@ -877,8 +877,13 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           <HeaderSearch trip={trip} setTrip={setTrip} onSubmit={searchTrip} busy={asking} />
         </div>
         <div className="cc-head-end" aria-live="polite">
-          <button type="button" className="cc-theme" onClick={switchTheme} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
-            {theme === "dark" ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
+          <button
+            type="button"
+            className="cc-theme"
+            onClick={switchTheme}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {theme === "dark" ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}
           </button>
           <label className="cc-currency">
             <Globe2 size={16} aria-hidden />
@@ -891,7 +896,6 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           </button>
           <button type="button" className="cc-listbtn" onClick={openListing}>List your hotel</button>
           <button type="button" className="cc-tripsbtn" aria-haspopup="dialog" onClick={() => setTripsOpen(true)}><Bookmark size={16} aria-hidden /> Trips{tripCount > 0 ? <span className="cc-tripcount">{tripCount}</span> : null}</button>
-          <button type="button" className="cc-askhead" onClick={() => setAskOpen(true)}><Sparkles size={16} aria-hidden /> Ask Indice</button>
         </div>
       </header>
 
@@ -920,6 +924,22 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
         <RangeStrip title="Reviews" label="review count" summary={`${reviewRange[0].toLocaleString("en-US")} to ${reviewRange[1].toLocaleString("en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
       </div>
 
+      <div className="cc-actionbar">
+        <div className="cc-actionbar-main">
+          {compareIds.length >= 2 && (
+            <div className="cc-tray">
+              <div className="cc-tray-copy">
+                <strong>{compareIds.length} stays selected</strong>
+                <span>{comparing.length > 2 ? `${comparing[0].hotel.name} and ${comparing.length - 1} more` : comparing.map((m) => m.hotel.name).join(" and ")}</span>
+              </div>
+              <button type="button" className="cc-tray-go" onClick={() => setCompareOpen(true)}>
+                Compare stays <ArrowRight size={14} aria-hidden />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="cc-views" role="group" aria-label="Switch view">
         <button
           type="button"
@@ -937,201 +957,230 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && isSentence(query)) { e.preventDefault(); void ask(query); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && isSentence(query)) {
+                  e.preventDefault();
+                  void ask(query);
+                }
+              }}
               placeholder="Search by name or city, or describe your stay"
               aria-label="Search hotels by name or city, or describe your stay and press Enter"
             />
           </label>
-          {isSentence(query) && <p className="cc-count" style={{ paddingLeft: 12 }}>{asking ? "Finding stays that fit..." : "Press Enter to find stays that fit this"}</p>}
-          {!aiMatches && store.trips.length > 0 && (
-            <div className="cc-resume">
-              <span>Pick up where you left off</span>
-              <div>
-                {store.trips.slice(0, 3).map((item) => (
-                  <button key={item.id} type="button" onClick={() => { setTrip(item.trip); void searchTrip(item.trip); }}>
-                    <strong>{tripTitle(item.trip)}</strong><small>{tripSummary(item.trip)}</small>
+
+          {isSentence(query) && (
+            <p className="cc-count" style={{ paddingLeft: 12 }}>
+              {asking ? "Finding stays that fit..." : "Press Enter to find stays that fit this"}
+            </p>
+          )}
+
+          {shown.length === 0 && (
+            <div className="cc-empty">
+              {aiMatches && aiMatches.length === 0
+                ? "No stays matched this search. Try other dates, a different city or fewer filters."
+                : "No hotels match these filters."}
+              {(filtersActive || aiMatches) && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFilters();
+                      setAiMatches(null);
+                      setAiQuery("");
+                    }}
+                  >
+                    {aiMatches ? "Show all stays" : "Clear filters"}
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
-          {aiMatches && (
-            <section className="cc-understanding" aria-label="Trip intelligence">
-              <div className="cc-understanding-head">
-                <div>
-                  <span className="cc-understanding-eyebrow">
-                    <Sparkles size={12} aria-hidden /> INDICE UNDERSTANDS
+
+          {shown.map((match, index) => {
+            const { hotel, fit_percent } = match;
+            const picked = compareIds.includes(hotel.id);
+            const fit = fitLine(match);
+            const info = catchInfo(match);
+
+            return (
+              <article
+                key={hotel.id}
+                className="cc-card"
+                data-hotel={hotel.id}
+                aria-current={selectedId === hotel.id}
+              >
+                <button
+                  type="button"
+                  className="cc-card-media"
+                  onClick={() => openHotel(hotel.id)}
+                  aria-label={`View details of ${hotel.name}`}
+                >
+                  <HotelPhoto
+                    src={hotel.image_urls[0]}
+                    name={hotel.name}
+                    eager={index < 18}
+                  />
+                  <span className="cc-rank">
+                    {String(index + 1).padStart(2, "0")}
+                    {typeof fit_percent === "number" ? <i>{fit_percent}% match</i> : null}
                   </span>
+                  <span className="cc-score">
+                    <Star size={12} fill="currentColor" aria-hidden />
+                    {hotel.rating.toFixed(1)}
+                    {hotel.review_count > 0 ? (
+                      <small>({hotel.review_count.toLocaleString("en-US")})</small>
+                    ) : null}
+                  </span>
+                </button>
 
-                  <div className="cc-understanding-title">
-                    {interpretedTrip && [
-                      tripPurposeLabel(interpretedTrip),
-                      interpretedTrip.destination,
-                      interpretedTrip.party ? partyLabels[interpretedTrip.party] || interpretedTrip.party : "",
-                    ].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  className="cc-heart"
+                  aria-pressed={stayIds.has(hotel.id)}
+                  aria-label={
+                    stayIds.has(hotel.id)
+                      ? `Remove ${hotel.name} from saved stays`
+                      : `Save ${hotel.name}`
+                  }
+                  onClick={() => toggleStay(match)}
+                >
+                  <Heart
+                    size={15}
+                    fill={stayIds.has(hotel.id) ? "currentColor" : "none"}
+                    aria-hidden
+                  />
+                </button>
 
-                <div className="cc-understanding-actions">
-                  {currentTripId && (() => {
-                    const isSaved = store.trips.find((item) => item.id === currentTripId)?.saved ?? false;
-                    return (
-                      <button
-                        type="button"
-                        className="cc-savetrip"
-                        aria-pressed={isSaved}
-                        onClick={() => toggleSaveTrip(currentTripId)}
-                      >
-                        <Bookmark size={12} fill={isSaved ? "currentColor" : "none"} aria-hidden />
-                        {isSaved ? "Saved" : "Save trip"}
-                      </button>
-                    );
-                  })()}
-
-                  {lastSearch && (
-                    <button type="button" className="cc-savetrip" onClick={shareSearch}>
-                      {shareNote || "Share"}
-                    </button>
-                  )}
+                <div className="cc-card-body">
+                  <p className="cc-card-city">
+                    <MapPin size={12} aria-hidden /> {hotel.city}, {hotel.country}
+                  </p>
 
                   <button
                     type="button"
-                    className="cc-understanding-close"
-                    onClick={() => {
-                      setAiMatches(null);
-                      setAiQuery("");
-                      setInterpretedTrip(null);
-                      resetRanges();
-                      setCurrentTripId(null);
-                      setLastSearch(null);
-                    }}
-                    aria-label="Clear trip intelligence"
+                    className="cc-card-name"
+                    onClick={() => openHotel(hotel.id)}
                   >
-                    <X size={13} />
+                    {hotel.name}
                   </button>
-                </div>
-              </div>
 
-              {interpretedTrip && (
-                <div className="cc-understanding-tags">
-                  {(interpretedTrip.maxPrice !== null || interpretedTrip.budget !== "Any") && (
-                    <span className="cc-understanding-tag strong">
-                      {interpretedTrip.maxPrice !== null
-                        ? `Under $${interpretedTrip.maxPrice}/night`
-                        : interpretedTrip.budget}
-                    </span>
+                  {fit && (
+                    <p className="cc-fit">
+                      <i aria-hidden>✓</i>
+                      <span>{fit}</span>
+                    </p>
                   )}
 
-                  {interpretedTrip.requiredSignals.map((signal) => (
-                    <span className="cc-understanding-tag strong" key={`required-signal-${signal}`}>
-                      {intelligenceLabel(signal)}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.preferredSignals.map((signal) => (
-                    <span className="cc-understanding-tag" key={`preferred-signal-${signal}`}>
-                      {intelligenceLabel(signal)}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.requiredAmenities.map((amenity) => (
-                    <span className="cc-understanding-tag strong" key={`required-amenity-${amenity}`}>
-                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.preferredAmenities.map((amenity) => (
-                    <span className="cc-understanding-tag" key={`preferred-amenity-${amenity}`}>
-                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {!catalogError && (
-            <p className="cc-count" aria-live="polite" style={{ paddingLeft: 12 }}>
-              {filtersActive ? `${shown.length} of ${pool.length} stays` : `${shown.length} ${shown.length === 1 ? "stay" : "stays"}`}
-            </p>
-          )}
-          <div className="cc-list" ref={listRef}>
-            {catalogError && <div className="cc-empty" role="alert">{catalogError}</div>}
-            {!catalogError && shown.length === 0 && (
-              <div className="cc-empty">
-                {aiMatches && aiMatches.length === 0 ? "No stays matched this search. Try other dates, a different city or fewer filters." : "No hotels match these filters."}
-                {(filtersActive || aiMatches) && <div><button type="button" onClick={() => { resetFilters(); setAiMatches(null); setAiQuery(""); }}>{aiMatches ? "Show all stays" : "Clear filters"}</button></div>}
-              </div>
-            )}
-            {shown.map((match, index) => {
-              const { hotel, fit_percent } = match;
-              const picked = compareIds.includes(hotel.id);
-              const fit = fitLine(match);
-              const info = catchInfo(match);
-              return (
-                <article key={hotel.id} className="cc-card" data-hotel={hotel.id} aria-current={selectedId === hotel.id}>
-                  <button type="button" className="cc-card-media" onClick={() => openHotel(hotel.id)} aria-label={`View details of ${hotel.name}`}>
-                    <HotelPhoto src={hotel.image_urls[0]} name={hotel.name} eager={index < 18} />
-                    <span className="cc-rank">{String(index + 1).padStart(2, "0")}{typeof fit_percent === "number" ? <i>{fit_percent}% match</i> : null}</span>
-                    <span className="cc-score"><Star size={12} fill="currentColor" aria-hidden /> {hotel.rating.toFixed(1)}{hotel.review_count > 0 ? <small>({hotel.review_count.toLocaleString("en-US")})</small> : null}</span>
-                  </button>
-                  <button type="button" className="cc-heart" aria-pressed={stayIds.has(hotel.id)} aria-label={stayIds.has(hotel.id) ? `Remove ${hotel.name} from saved stays` : `Save ${hotel.name}`} onClick={() => toggleStay(match)}>
-                    <Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden />
-                  </button>
-                  <div className="cc-card-body">
-                    <p className="cc-card-city"><MapPin size={12} aria-hidden /> {hotel.city}, {hotel.country}</p>
-                    <button type="button" className="cc-card-name" onClick={() => openHotel(hotel.id)}>{hotel.name}</button>
-
-                  {match.tripadvisor && (
-                    <div
-                      className="cc-tripadvisor"
-                      aria-label={`Tripadvisor Traveler Rating ${match.tripadvisor.rating ?? "not available"} from ${match.tripadvisor.reviewCount.toLocaleString("en-US")} reviews`}
-                    >
-                      <span className="cc-tripadvisor-brand">Tripadvisor</span>
-
-                      {match.tripadvisor.ratingIconUrl ? (
-                        <img
-                          className="cc-tripadvisor-bubbles"
-                          src={match.tripadvisor.ratingIconUrl}
-                          alt={
-                            match.tripadvisor.rating !== null
-                              ? `Tripadvisor Traveler Rating ${match.tripadvisor.rating.toFixed(1)} out of 5`
-                              : "Tripadvisor Traveler Rating"
-                          }
-                        />
-                      ) : (
-                        <strong>
-                          {match.tripadvisor.rating !== null
-                            ? match.tripadvisor.rating.toFixed(1)
-                            : "—"}
-                        </strong>
-                      )}
-
-                      <span>
-                        {match.tripadvisor.reviewCount.toLocaleString("en-US")} reviews
-                      </span>
-                    </div>
+                  {info?.kind === "caution" && (
+                    <p className="cc-catch">
+                      <i aria-hidden>!</i>
+                      <span>{info.text}</span>
+                    </p>
                   )}
+                </div>
+              </article>
+            );
+          })}
 
-                    {fit && <p className="cc-fit"><i aria-hidden>✓</i><span>{fit}</span></p>}
-                    {info?.kind === "caution" && <p className="cc-catch"><i aria-hidden>!</i><span>{info.text}</span></p>}
-                    {info?.kind === "unverified" && <p className="cc-unsure">{info.label} not confirmed</p>}
-                    {info?.kind === "note" && <p className="cc-note-line">{info.text}</p>}
-                    <div className="cc-card-foot">
-                      <div className="cc-card-price">
-                        {hotel.estimated_price_per_night > 0
-                          ? <><b>{formatPrice(hotel.estimated_price_per_night)}</b><small>{match.liveRate ? "live rate" : "estimated / night"}</small></>
-                          : <><b>Rate not shown</b><small>check the booking site</small></>}
-                      </div>
-                      <div className="cc-card-actions">
-                        <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 4 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? "Comparing" : "Compare"}</button>
-                        <button type="button" className="cc-book-btn" onClick={() => openBooking(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>Check rates <ArrowUpRight size={13} aria-hidden /></button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+          {shown.length > 0 && (
+            <aside className="cc-listcta">
+              <div>
+                <strong>Own a hotel?</strong>
+                <span>Get it in front of people who are planning a trip. It takes two minutes.</span>
+              </div>
+              <button type="button" onClick={openListing}>
+                List your hotel
+              </button>
+            </aside>
+          )}
+
+          {compareIds.length >= 2 && (
+            <div className="cc-tray">
+              <div className="cc-tray-copy">
+                <strong>{compareIds.length} stays selected</strong>
+                <span>
+                  {comparing.length > 2
+                    ? `${comparing[0].hotel.name} and ${comparing.length - 1} more`
+                    : comparing.map((m) => m.hotel.name).join(" and ")}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="cc-tray-go"
+                onClick={() => setCompareOpen(true)}
+              >
+                Compare stays <ArrowRight size={14} aria-hidden />
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section className="cc-map-col" aria-label="Map">
+          <MapView
+            matches={shown}
+            selectedId={selectedId}
+            onSelect={pickOnMap}
+            formatPrice={formatPrice}
+          />
+
+          <div className="cc-map-tools">
+            <button
+              type="button"
+              className="cc-askhead"
+              onClick={() => setAskOpen(true)}
+              aria-label="Ask Indice"
+            >
+              <Sparkles size={16} aria-hidden />
+              <span>Ask Indice</span>
+            </button>
+          </div>
+
+          <div className="cc-vignette" aria-hidden />
+
+          {(() => {
+            const picked = findMatch(selectedId);
+            if (!picked) return null;
+            const stay = picked.hotel;
+
+            return (
+              <div className="cc-map-card">
+                <button
+                  type="button"
+                  className="cc-map-card-main"
+                  onClick={() => openHotel(stay.id)}
+                >
+                  <span
+                    className="cc-map-card-photo"
+                    style={
+                      stay.image_urls[0]
+                        ? { backgroundImage: `url("${stay.image_urls[0]}")` }
+                        : undefined
+                    }
+                  />
+                  <span className="cc-map-card-text">
+                    <strong>{stay.name}</strong>
+                    <small>{stay.city}</small>
+                    <small>
+                      {stay.estimated_price_per_night > 0
+                        ? `${formatPrice(stay.estimated_price_per_night)} a night`
+                        : "See rate"}{" "}
+                      and {stay.rating.toFixed(1)} stars
+                    </small>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="cc-map-card-go"
+                  onClick={() => openBooking(stay.id)}
+                >
+                  Check rates
+                </button>
+              </div>
+            );
+          })()}
+        </section>
+      </div>
             {shown.length > 0 && (
               <aside className="cc-listcta">
                 <div><strong>Own a hotel?</strong><span>Get it in front of people who are planning a trip. It takes two minutes.</span></div>
@@ -1140,19 +1189,22 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             )}
           </div>
 
-          {compareIds.length >= 2 && (
-            <div className="cc-tray">
-              <div className="cc-tray-copy">
-                <strong>{compareIds.length} stays selected</strong>
-                <span>{comparing.length > 2 ? `${comparing[0].hotel.name} and ${comparing.length - 1} more` : comparing.map((m) => m.hotel.name).join(" and ")}</span>
-              </div>
-              <button type="button" className="cc-tray-go" onClick={() => setCompareOpen(true)}>Compare stays <ArrowRight size={14} aria-hidden /></button>
-            </div>
-          )}
         </section>
 
         <section className="cc-map-col" aria-label="Map">
           <MapView matches={shown} selectedId={selectedId} onSelect={pickOnMap} formatPrice={formatPrice} />
+
+          <div className="cc-map-tools">
+            <button
+              type="button"
+              className="cc-askhead"
+              onClick={() => setAskOpen(true)}
+              aria-label="Ask Indice"
+            >
+              <Sparkles size={16} aria-hidden />
+              <span>Ask Indice</span>
+            </button>
+          </div>
           <div className="cc-vignette" aria-hidden />
           {(() => {
             const picked = findMatch(selectedId);

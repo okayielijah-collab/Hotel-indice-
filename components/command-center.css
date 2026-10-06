@@ -1,0 +1,295 @@
+
+/* =========================================================
+   MOBILE COMPARE = FRESH FULL-SCREEN EXPERIENCE
+   DESKTOP COMPARE = EXISTING MODAL, UNCHANGED
+   ========================================================= */
+
+@media (max-width: 760px) {
+  /* Let Compare take over the whole phone */
+  .cc-modal-back:has(.cc-compare-modal) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    place-items: initial !important;
+    z-index: 1200 !important;
+    background: var(--cc-bg) !important;
+  }
+
+  /* The compare view becomes the new mobile screen */
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-modal {
+    position: relative !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 20px 16px calc(32px + env(safe-area-inset-bottom)) !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    box-shadow: none !important;
+  }
+
+  /* Mobile header */
+  .cc-modal-back:has(.cc-compare-modal) .cc-modal-x {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+    margin-left: auto !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-modal > h2 {
+    margin-top: 8px !important;
+    font-size: 24px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-modal > .cc-meta {
+    margin-bottom: 18px !important;
+  }
+
+  /* One comparison card per row on phone */
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-grid,
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-grid[data-count="3"],
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-grid[data-count="4"] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    width: 100% !important;
+    margin-top: 16px !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp {
+    width: 100% !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp > img {
+    width: 100% !important;
+    height: 190px !important;
+    object-fit: cover !important;
+  }
+
+  /* Keep the bottom action comfortable on a phone */
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp-foot {
+    position: sticky !important;
+    bottom: 0 !important;
+    padding-top: 14px !important;
+    padding-bottom: 4px !important;
+    background: var(--cc-bg) !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp-foot .cc-compare {
+    width: 100% !important;
+    min-height: 46px !important;
+  }
+}
+
+/* =========================================================
+   TOP ACTION BAR — COMPARE / ASK INDICE / THEME
+   ========================================================= */
+
+.cc-actionbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 8px 22px;
+  border-bottom: 1px solid var(--cc-line);
+  background: var(--cc-panel);
+  box-sizing: border-box;
+}
+
+.cc-actionbar-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.cc-actionbar-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: none;
+}
+
+/* Compare is now a normal top-of-results element.
+   Override all old bottom-tray positioning. */
+.cc-actionbar .cc-tray {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 42px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.cc-actionbar .cc-tray-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-actionbar .cc-tray-copy strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.cc-actionbar .cc-tray-copy span {
+  color: var(--cc-dim);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cc-actionbar .cc-tray-go {
+  flex: none;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: var(--cc-warm);
+  color: #171007;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cc-actionbar .cc-askhead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--cc-ai) 65%, var(--cc-line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cc-ai) 10%, var(--cc-panel));
+  color: var(--cc-ai);
+  font-weight: 650;
+}
+
+.cc-theme-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--cc-line);
+  border-radius: 10px;
+  background: var(--cc-panel);
+  color: var(--cc-text);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.cc-theme-switch:hover {
+  border-color: var(--cc-dim);
+}
+
+@media (max-width: 760px) {
+  .cc-actionbar {
+    min-height: 0;
+    padding: 8px 12px;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .cc-actionbar-main {
+    min-width: 0;
+  }
+
+  .cc-actionbar .cc-tray {
+    min-height: 44px;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .cc-actionbar .cc-tray-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cc-actionbar .cc-tray-go {
+    min-height: 40px;
+    padding: 0 12px;
+  }
+
+  .cc-actionbar-tools {
+    flex: none;
+    align-items: center;
+  }
+
+  .cc-actionbar .cc-askhead {
+    min-height: 40px;
+    width: 40px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .cc-actionbar .cc-askhead svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .cc-theme-switch {
+    width: 40px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .cc-theme-switch svg {
+    width: 17px;
+    height: 17px;
+  }
+}
+
+
+/* =========================================================
+   ACTION BAR — NORMAL FLOW RESET
+   ========================================================= */
+
+.cc-actionbar .cc-tray {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  inset: auto !important;
+}
+
+.cc-actionbar .cc-askhead {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  inset: auto !important;
+}
+
+@media (max-width: 760px) {
+  .cc-actionbar .cc-tray {
+    position: static !important;
+  }
+
+  .cc-actionbar .cc-askhead {
+    position: static !important;
+  }
+}

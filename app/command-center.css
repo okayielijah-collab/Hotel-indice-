@@ -336,8 +336,29 @@
   .cc-views { display: flex; gap: 6px; padding: 4px 12px; }
   .cc-views button { flex: 1; border: 1px solid var(--cc-line); border-radius: 8px; font-size: 14px; }
   .cc-views button[aria-pressed="true"] { border-color: var(--cc-signal); background: var(--cc-signal-soft); }
-  .cc-body { display: block; position: relative; }
-  .cc-list-col, .cc-map-col { position: absolute; inset: 0; border: 0; }
+  .cc-body {
+    display: block !important;
+    position: relative !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .cc-list-col {
+    position: relative !important;
+    inset: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0;
+  }
+
+  .cc-map-col {
+    position: relative !important;
+    inset: auto !important;
+    border: 0;
+  }
   .cc-root[data-view="list"] .cc-map-col { visibility: hidden; }
   .cc-root[data-view="map"] .cc-list-col { visibility: hidden; }
 }
@@ -392,7 +413,7 @@
 .cc-root[data-theme="light"] .cc-ask { box-shadow: 0 14px 34px rgba(25, 62, 80, 0.2); }
 
 /* compare tray */
-.cc-tray { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--cc-signal); border-radius: 12px; background: var(--cc-panel); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.cc-tray { position: static; z-index: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--cc-signal); border-radius: 12px; background: var(--cc-panel); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
 .cc-tray-copy { min-width: 0; display: flex; flex-direction: column; font-size: 12px; color: var(--cc-dim); }
 .cc-tray-copy strong { font-size: 14px; color: var(--cc-text); }
 .cc-tray-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -828,22 +849,74 @@
   .cc-root[data-view="map"] .cc-map-col { display: block !important; height: calc(100dvh - 200px) !important; min-height: 420px; }
   .cc-list { grid-template-columns: 1fr !important; }
 
-  .cc-modal-back { padding: 8px !important; align-items: flex-end !important; }
-  .cc-modal { width: 100% !important; max-width: 100% !important; max-height: 94dvh; overflow-y: auto; box-sizing: border-box; border-radius: 18px; }
+  .cc-modal-back {
+    padding: 10px !important;
+    align-items: flex-end !important;
+    overflow: hidden !important;
+  }
+
+  .cc-modal {
+    width: 100% !important;
+    max-width: 760px !important;
+    max-height: 86dvh !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    box-sizing: border-box;
+    border-radius: 20px !important;
+  }
+
+  .cc-detail-modal {
+    touch-action: pan-y !important;
+  }
+
+  .cc-detail-modal .cc-dm-hero {
+    min-height: 210px !important;
+  }
+
+  .cc-detail-modal .cc-dm-hero h2 {
+    font-size: 24px !important;
+  }
   .cc-dm-hero h2 { font-size: 24px !important; }
   .cc-dm-actions { flex-wrap: wrap; gap: 8px; }
   .cc-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
   .cc-tabs button { flex: 0 0 auto; }
-  .cc-tray { left: 8px !important; right: 8px !important; width: auto !important; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+
 }
 
 /* ===== Phones, round two: list height, map size, compact header, selected stay card ===== */
 .cc-plan-toggle, .cc-map-card { display: none; }
 @media (max-width: 760px) {
-  .cc-root { height: auto !important; min-height: 100dvh; overflow-x: clip !important; overflow-y: visible !important; }
-  .cc-body { display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
-  .cc-list-col { height: auto !important; max-height: none !important; overflow: visible !important; }
-  .cc-list { height: auto !important; max-height: none !important; overflow: visible !important; padding-bottom: 96px; }
+  .cc-root {
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+  }
+
+  .cc-body {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .cc-list-col {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .cc-list {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding-bottom: 96px;
+  }
   .cc-map-col { position: relative !important; }
   .cc-map-col .map-canvas-wrap, .cc-map-col .map-canvas { height: 100% !important; min-height: 420px; }
 
@@ -1225,10 +1298,10 @@
   .cc-views { position: fixed !important; top: auto !important; bottom: calc(16px + env(safe-area-inset-bottom)); left: 14px; right: auto; width: 190px !important; margin: 0 !important; background: var(--card, #fff) !important; box-shadow: 0 10px 28px rgba(20, 35, 40, .3); }
 
   /* Ask Indice floats at the bottom right */
-  .cc-askhead { position: fixed !important; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 60; height: 50px !important; padding: 0 18px !important; border-radius: 999px !important; background: var(--card, #fff) !important; box-shadow: 0 10px 28px rgba(20, 35, 40, .3); }
+
 
   /* make room when the compare tray is showing */
-  .cc-root:has(.cc-tray) .cc-views, .cc-root:has(.cc-tray) .cc-askhead { bottom: calc(92px + env(safe-area-inset-bottom)); }
+
   .cc-list { padding-bottom: 120px !important; }
   .cc-map-card { bottom: 82px !important; }
 
@@ -1237,4 +1310,1671 @@
   .cc-card-media { height: 250px !important; }
   .cc-card-name { font-size: 22px !important; line-height: 1.2 !important; }
   .cc-card-city { font-size: 13px !important; }
+}
+
+/* ===== Mobile list: normal page scrolling ===== */
+@media (max-width: 760px) {
+  .cc-root[data-view="list"] {
+    position: relative !important;
+    inset: auto !important;
+    display: block !important;
+    height: auto !important;
+    min-height: 100dvh;
+    overflow: visible !important;
+  }
+
+  .cc-root[data-view="list"] .cc-body {
+    display: block !important;
+    position: relative !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .cc-root[data-view="list"] .cc-list-col {
+    position: relative !important;
+    inset: auto !important;
+    display: flex !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .cc-root[data-view="list"] .cc-list {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+/* ===== Mobile: compact hotel cards ===== */
+@media (max-width: 760px) {
+  /* Main hotel result cards */
+  .cc-card-media {
+    height: 105px !important;
+  }
+
+  .cc-card-body {
+    gap: 4px !important;
+    padding: 7px 9px 8px !important;
+  }
+
+  .cc-card-city {
+    font-size: 10.5px !important;
+  }
+
+  .cc-card-name {
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cc-card-why {
+    font-size: 11.5px !important;
+    line-height: 1.3 !important;
+    -webkit-line-clamp: 1 !important;
+  }
+
+  .cc-tags {
+    gap: 4px !important;
+  }
+
+  .cc-tags span {
+    font-size: 9.5px !important;
+    padding: 1px 5px !important;
+  }
+
+  .cc-card-foot {
+    padding-top: 4px !important;
+    gap: 5px !important;
+  }
+
+  .cc-card-price b {
+    font-size: 15px !important;
+  }
+
+  .cc-card-price small {
+    font-size: 9.5px !important;
+  }
+
+  .cc-compare,
+  .cc-book-btn {
+    padding: 4px 7px !important;
+    font-size: 10.5px !important;
+  }
+
+  /* Compare/modal hotel cards */
+  .cc-compare-grid {
+    gap: 10px !important;
+  }
+
+  .cc-cmp {
+    border-radius: 11px !important;
+  }
+
+  .cc-cmp > img {
+    height: 105px !important;
+  }
+
+  .cc-cmp-body {
+    padding: 9px !important;
+  }
+
+  .cc-cmp-head h3 {
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+  }
+
+  .cc-cmp-stats {
+    gap: 5px !important;
+    margin-top: 8px !important;
+  }
+
+  .cc-cmp-stats div {
+    padding: 6px 7px !important;
+  }
+
+  .cc-cmp-stats span {
+    font-size: 9.5px !important;
+  }
+
+  .cc-cmp-stats strong {
+    font-size: 13px !important;
+  }
+
+  .cc-cmp-item {
+    margin-top: 6px !important;
+    padding: 7px 8px !important;
+  }
+}
+
+
+/* ===== Mobile hotel detail: full-screen experience ===== */
+@media (max-width: 760px) {
+  .cc-modal.cc-detail-modal {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    z-index: 1100 !important;
+  }
+
+  .cc-modal.cc-detail-modal .cc-dm-hero {
+    width: 100% !important;
+    min-height: 240px !important;
+    height: 240px !important;
+    border-radius: 0 !important;
+  }
+
+  .cc-modal.cc-detail-modal .cc-dm-book {
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 18px !important;
+    top: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    height: 48px !important;
+    padding: 10px 18px !important;
+    border-radius: 12px !important;
+  }
+
+  .cc-modal.cc-detail-modal .cc-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  .cc-modal.cc-detail-modal .cc-tab-body {
+    padding-bottom: calc(32px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* ===== Final mobile detail / booking modal alignment ===== */
+@media (max-width: 760px) {
+
+  /* Hotel detail */
+  .cc-modal.cc-detail-modal .cc-dm-hero {
+    position: relative !important;
+    min-height: 240px !important;
+    height: 240px !important;
+    padding: 18px !important;
+    overflow: visible !important;
+  }
+
+  .cc-modal.cc-detail-modal .cc-dm-hero h2 {
+    position: absolute !important;
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 78px !important;
+    z-index: 2 !important;
+    margin: 0 !important;
+    font-size: 24px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Full-width primary CTA */
+  .cc-modal.cc-detail-modal .cc-dm-actions .cc-dm-book {
+    position: absolute !important;
+    left: 18px !important;
+    right: 18px !important;
+    bottom: 18px !important;
+    top: auto !important;
+    transform: none !important;
+    width: calc(100% - 36px) !important;
+    max-width: none !important;
+    height: 48px !important;
+    padding: 10px 18px !important;
+    z-index: 4 !important;
+    border-radius: 12px !important;
+    font-size: 15px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Keep Save stay visible above the CTA */
+  .cc-modal.cc-detail-modal .cc-dm-actions .cc-dm-save {
+    right: 18px !important;
+    bottom: 78px !important;
+    z-index: 4 !important;
+  }
+
+  /* Check-rates: intentionally smaller centered card */
+  .cc-modal.cc-booking-modal {
+    width: calc(100vw - 32px) !important;
+    max-width: 360px !important;
+    max-height: calc(100dvh - 48px) !important;
+    padding: 18px !important;
+    border-radius: 18px !important;
+    box-sizing: border-box !important;
+  }
+
+  .cc-modal.cc-booking-modal .cc-handoff {
+    margin-top: 12px !important;
+    padding: 12px !important;
+  }
+
+  .cc-modal.cc-booking-modal .cc-note {
+    margin-top: 10px !important;
+    padding: 10px 12px !important;
+  }
+
+  .cc-modal.cc-booking-modal .cc-options {
+    margin-top: 12px !important;
+    gap: 7px !important;
+  }
+
+  .cc-modal.cc-booking-modal .cc-options a {
+    min-height: 44px !important;
+    padding: 10px 12px !important;
+  }
+
+  .cc-modal.cc-booking-modal .cc-disclosure {
+    margin-top: 9px !important;
+  }
+}
+
+/* ===== Mobile check-rates modal: compact + centered ===== */
+@media (max-width: 760px) {
+  .cc-modal-back:has(.cc-booking-modal) {
+    align-items: center !important;
+    justify-items: center !important;
+    padding: 16px !important;
+  }
+
+  .cc-modal-back:has(.cc-booking-modal) .cc-booking-modal {
+    width: calc(100vw - 48px) !important;
+    max-width: 342px !important;
+    max-height: calc(100dvh - 64px) !important;
+    padding: 18px !important;
+    box-sizing: border-box !important;
+    border-radius: 18px !important;
+  }
+}
+
+/* ===== Compare: desktop stays modal, mobile becomes full screen ===== */
+
+/* Restore the existing desktop compare modal */
+@media (min-width: 761px) {
+  .cc-modal-back:has(.cc-compare-modal) {
+    padding: 16px !important;
+    place-items: center !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-modal {
+    width: 100% !important;
+    max-width: 1100px !important;
+    height: auto !important;
+    max-height: 92vh !important;
+    margin: 0 !important;
+    padding: 22px !important;
+    border-radius: 18px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-grid,
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp-foot {
+    width: auto !important;
+    max-width: none !important;
+    margin-left: initial !important;
+    margin-right: initial !important;
+  }
+}
+
+/* Mobile: Compare becomes a full-screen screen */
+@media (max-width: 760px) {
+  .cc-modal-back:has(.cc-compare-modal) {
+    padding: 0 !important;
+    place-items: stretch !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-modal {
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 20px 16px calc(32px + env(safe-area-inset-bottom)) !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-compare-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .cc-modal-back:has(.cc-compare-modal) .cc-cmp > img {
+    height: 190px !important;
+  }
+}
+
+
+/* =========================================================
+   MOBILE — COMPACT RESULTS ACTION BAR
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .cc-actionbar {
+    min-height: 0 !important;
+    padding: 5px 8px !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+
+  .cc-actionbar-main {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  .cc-actionbar .cc-tray {
+    min-height: 36px !important;
+    width: 100% !important;
+    gap: 7px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+  }
+
+  .cc-actionbar .cc-tray-copy {
+    gap: 1px !important;
+    min-width: 0 !important;
+  }
+
+  .cc-actionbar .cc-tray-copy strong {
+    font-size: 10.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  .cc-actionbar .cc-tray-copy span {
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+
+  .cc-actionbar .cc-tray-go {
+    min-height: 32px !important;
+    padding: 0 9px !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+  }
+
+  .cc-actionbar-tools {
+    gap: 5px !important;
+    flex: none !important;
+  }
+
+  .cc-actionbar .cc-askhead,
+  .cc-actionbar .cc-theme-switch {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+    font-size: 0 !important;
+    gap: 0 !important;
+  }
+
+  .cc-actionbar .cc-askhead svg,
+  .cc-actionbar .cc-theme-switch svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+}
+
+/* =========================================================
+   MAP — FLOATING INDICE CONTROLS
+   ========================================================= */
+
+.cc-map-col {
+  position: relative !important;
+}
+
+.cc-map-tools {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cc-map-tools .cc-askhead,
+.cc-map-tools .cc-theme-switch {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  box-sizing: border-box;
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 760px) {
+  .cc-map-tools {
+    top: 10px;
+    right: 10px;
+    gap: 5px;
+  }
+
+  .cc-map-tools .cc-askhead,
+  .cc-map-tools .cc-theme-switch {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+    font-size: 0 !important;
+  }
+
+  .cc-map-tools .cc-askhead svg,
+  .cc-map-tools .cc-theme-switch svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  /* Keep the controls in the results header when browsing the list. */
+  .cc-root[data-view="list"] .cc-map-tools {
+    display: none;
+  }
+}
+
+
+/* =========================================================
+   COMMAND CENTER — FULL MAP SURFACE
+   ========================================================= */
+
+@media (min-width: 761px) {
+  .cc-body {
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  .cc-map-col {
+    position: relative !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .cc-map-col .map-canvas-wrap {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  /* Ask Indice stays on the map */
+  .cc-map-tools {
+    position: absolute !important;
+    top: 14px !important;
+    right: 14px !important;
+    z-index: 1200 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+  }
+
+  .cc-map-tools .cc-askhead {
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  /* Light/Dark belongs beside USD, not on the map */
+  .cc-map-tools .cc-theme-switch {
+    display: none !important;
+  }
+
+  .cc-head-end .cc-theme {
+    width: 40px !important;
+    height: 40px !important;
+    flex: 0 0 40px !important;
+    display: grid !important;
+    place-items: center !important;
+    border: 2px solid var(--cc-line) !important;
+    border-radius: 10px !important;
+    background: var(--cc-panel) !important;
+  }
+
+  .cc-head-end .cc-theme:hover {
+    border-color: var(--cc-dim) !important;
+  }
+}
+
+/* =========================================================
+   HOTELIST-STYLE VIEW SWITCH + ASK INDICE
+   ========================================================= */
+
+/* Ask Indice on the hotel-list side */
+.cc-list-col {
+  position: relative !important;
+}
+
+.cc-list-ask {
+  position: absolute !important;
+  top: 8px !important;
+  right: 10px !important;
+  z-index: 20 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+
+  height: 38px !important;
+  padding: 0 13px !important;
+
+  border: 1.5px solid var(--cc-ai) !important;
+  border-radius: 10px !important;
+
+  color: var(--cc-text) !important;
+  background: color-mix(in srgb, var(--cc-panel) 88%, transparent) !important;
+
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+}
+
+.cc-list-ask svg {
+  color: var(--cc-ai) !important;
+}
+
+.cc-list-ask:hover {
+  background: color-mix(in srgb, var(--cc-ai) 12%, var(--cc-panel)) !important;
+}
+
+/* Single Hotelist-style List / Map pill */
+@media (max-width: 760px) {
+  .cc-views {
+    position: fixed !important;
+    z-index: 1400 !important;
+
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(18px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: auto !important;
+    min-width: 94px !important;
+    height: 42px !important;
+
+    margin: 0 !important;
+    padding: 0 18px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 999px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .38) !important;
+  }
+
+  .cc-views::before {
+    display: none !important;
+  }
+
+  .cc-views button {
+    all: unset !important;
+
+    min-width: 58px !important;
+    height: 42px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    color: var(--cc-text) !important;
+    font: 700 13px system-ui, sans-serif !important;
+
+    cursor: pointer !important;
+  }
+
+  .cc-views button:focus-visible {
+    outline: 2px solid var(--cc-ai) !important;
+    outline-offset: 3px !important;
+  }
+
+  /* Ask Indice on BOTH mobile views */
+  .cc-list-ask,
+  .cc-map-tools .cc-askhead {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+
+    padding: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .cc-list-ask span,
+  .cc-map-tools .cc-askhead span {
+    display: none !important;
+  }
+
+  .cc-list-ask {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  .cc-map-tools {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  /* Keep the bottom switch clear of the hotel content */
+  .cc-root[data-view="list"] .cc-list {
+    padding-bottom: 90px !important;
+  }
+}
+
+/* Desktop: the list-side Ask button is compact */
+@media (min-width: 761px) {
+  .cc-list-ask {
+    top: 10px !important;
+    right: 12px !important;
+  }
+}
+
+/* =========================================================
+   MOBILE MAP — FULL AVAILABLE CANVAS
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .cc-root[data-view="map"] {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-body {
+    position: relative !important;
+    display: block !important;
+    height: calc(100dvh - 176px) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    background: var(--cc-void) !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col .map-canvas-wrap {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+
+/* =========================================================
+   MOBILE VIEW SWITCH — ONE SMALL BOX
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .cc-views {
+    position: fixed !important;
+    left: auto !important;
+    right: 12px !important;
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 2px solid var(--cc-line) !important;
+    border-radius: 10px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35) !important;
+
+    z-index: 1500 !important;
+  }
+
+  .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-views button {
+    all: unset !important;
+    box-sizing: border-box !important;
+
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 9px !important;
+
+    background: transparent !important;
+    color: var(--cc-text) !important;
+
+    font: 600 11px system-ui, sans-serif !important;
+    cursor: pointer !important;
+  }
+
+  .cc-views button[aria-pressed="true"] {
+    color: var(--cc-text) !important;
+    background: transparent !important;
+  }
+}
+
+/* =========================================================
+   FINAL MOBILE MAP LAYOUT
+   Reference: full map + centered List button
+   ========================================================= */
+
+@media (min-width: 761px) {
+  /* View switch is mobile-only */
+  .cc-views {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+
+  /* -------------------------------------------------------
+     MAP: USE ALL AVAILABLE SPACE
+     ------------------------------------------------------- */
+
+  .cc-root[data-view="map"] {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-body {
+    position: relative !important;
+    flex: 1 1 auto !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col {
+    position: absolute !important;
+    inset: 0 !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+    background: var(--cc-void) !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col > .map-canvas-wrap {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Kill the old 420px / 200px mobile map constraints */
+  .cc-root[data-view="map"] .cc-map-col,
+  .cc-root[data-view="map"] .cc-map-col .map-canvas-wrap,
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    min-height: 0 !important;
+  }
+
+
+  /* -------------------------------------------------------
+     LIST / MAP TOGGLE
+     Reference size: ~118 × 52px
+     ------------------------------------------------------- */
+
+  .cc-views {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+    top: auto !important;
+
+    bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 118px !important;
+    min-width: 118px !important;
+    max-width: 118px !important;
+
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 13px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35) !important;
+
+    z-index: 2000 !important;
+  }
+
+  /* Remove the old two-sided sliding pill */
+  .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-views button {
+    all: unset !important;
+
+    box-sizing: border-box !important;
+
+    width: 118px !important;
+    min-width: 118px !important;
+    height: 52px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 12px !important;
+
+    background: transparent !important;
+    color: var(--cc-text) !important;
+
+    font: 650 14px system-ui, -apple-system, sans-serif !important;
+
+    cursor: pointer !important;
+  }
+
+  .cc-views button:hover,
+  .cc-views button:active,
+  .cc-views button[aria-pressed="true"] {
+    background: transparent !important;
+    color: var(--cc-text) !important;
+  }
+
+  .cc-views button:focus-visible {
+    outline: 2px solid var(--cc-ai) !important;
+    outline-offset: 3px !important;
+  }
+}
+
+/* =========================================================
+   FINAL MOBILE MAP / LIST SWITCH
+   ========================================================= */
+
+/* Desktop: no floating mobile switch */
+@media (min-width: 761px) {
+  .cc-views {
+    display: none !important;
+  }
+}
+
+/* Mobile only */
+@media (max-width: 760px) {
+
+  /* Give the map the entire available body */
+  .cc-root[data-view="map"] {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-body {
+    position: relative !important;
+    display: block !important;
+
+    height: calc(100dvh - 176px) !important;
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    overflow: hidden !important;
+    display: block !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col .map-canvas-wrap,
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* -------------------------------------------------------
+     SINGLE CENTERED SWITCH
+     ------------------------------------------------------- */
+
+  .cc-views {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+
+    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+
+    margin: 0 !important;
+    padding: 4px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 14px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .35) !important;
+
+    z-index: 1500 !important;
+  }
+
+  /* Kill the old sliding background */
+  .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  /* The actual single button */
+  .cc-views button {
+    all: unset !important;
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+    height: 40px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 10px !important;
+
+    background: transparent !important;
+    color: var(--cc-text) !important;
+
+    font: 650 13px system-ui, sans-serif !important;
+
+    cursor: pointer !important;
+  }
+
+  .cc-views button:hover,
+  .cc-views button:active,
+  .cc-views button:focus {
+    background: transparent !important;
+    color: var(--cc-text) !important;
+  }
+
+  .cc-views button:focus-visible {
+    outline: 2px solid var(--cc-ai) !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Don't let old mobile rules move it */
+  .cc-root:has(.cc-tray) .cc-views {
+    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+  }
+}
+
+/* =========================================================
+   MOBILE ONLY — CENTERED SINGLE MAP/LIST BUTTON
+   ========================================================= */
+
+@media (min-width: 761px) {
+  .cc-views {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .cc-views {
+    position: fixed !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    border: 2px solid var(--cc-line) !important;
+    border-radius: 10px !important;
+
+    background: var(--cc-panel) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+
+    z-index: 1500 !important;
+  }
+
+  .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-views button {
+    all: unset !important;
+    box-sizing: border-box !important;
+
+    width: 44px !important;
+    height: 44px !important;
+
+    display: grid !important;
+    place-items: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 8px !important;
+
+    background: transparent !important;
+    color: var(--cc-text) !important;
+
+    font: 600 11px system-ui, sans-serif !important;
+    line-height: 1 !important;
+
+    text-align: center !important;
+    white-space: nowrap !important;
+
+    cursor: pointer !important;
+  }
+}
+
+/* =========================================================
+   FINAL MOBILE MAP CONTROLS
+   ========================================================= */
+
+@media (min-width: 761px) {
+  /* View switch is mobile-only */
+  .cc-views {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+
+  /* -----------------------------------------
+     ASK INDICE
+     Hide the header/action-bar version.
+     Show the map-floating version instead.
+     ----------------------------------------- */
+
+  .cc-actionbar-tools {
+    display: none !important;
+  }
+
+  .cc-map-tools {
+    position: absolute !important;
+    top: 18px !important;
+    right: 12px !important;
+    z-index: 1400 !important;
+
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .cc-map-tools .cc-askhead {
+    position: static !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+
+    width: auto !important;
+    min-width: 40px !important;
+    height: 40px !important;
+
+    padding: 0 13px !important;
+
+    border: 1.5px solid var(--cc-ai) !important;
+    border-radius: 10px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25) !important;
+  }
+
+  .cc-map-tools .cc-askhead span {
+    display: inline !important;
+  }
+
+
+  /* -----------------------------------------
+     MAP / LIST SWITCH
+     One single box.
+     Centered horizontally.
+     Larger like the reference.
+     ----------------------------------------- */
+
+  .cc-views {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+    top: auto !important;
+
+    bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 12px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35) !important;
+
+    z-index: 1500 !important;
+  }
+
+  /* Kill the old split-pill indicator */
+  .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-views button {
+    all: unset !important;
+
+    width: 120px !important;
+    min-width: 120px !important;
+    height: 48px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border: 0 !important;
+    border-radius: 11px !important;
+
+    background: transparent !important;
+    color: var(--cc-text) !important;
+
+    font: 650 13px system-ui, sans-serif !important;
+
+    text-align: center !important;
+    cursor: pointer !important;
+  }
+
+  .cc-views button[aria-pressed="true"] {
+    background: transparent !important;
+    color: var(--cc-text) !important;
+  }
+
+
+  /* -----------------------------------------
+     MAP MUST REMAIN THE FULL MOBILE CANVAS
+     ----------------------------------------- */
+
+  .cc-root[data-view="map"] {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-body {
+    position: relative !important;
+    display: block !important;
+
+    height: calc(100dvh - 176px) !important;
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-col .map-canvas-wrap,
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+
+    width: 100% !important;
+    height: 100% !important;
+
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+
+
+/* =========================================================
+   MOBILE MAP — FULL HEIGHT + FLOATING CONTROLS
+   ========================================================= */
+
+@media (max-width: 760px) {
+
+  /* The map view itself owns the screen below the header */
+  .cc-root[data-view="map"] {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .cc-root[data-view="map"] .cc-body {
+    position: relative !important;
+    display: block !important;
+    height: calc(100dvh - 172px) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Full map column */
+  .cc-root[data-view="map"] .cc-map-col {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    background: var(--cc-void) !important;
+  }
+
+  /* Full Leaflet wrapper */
+  .cc-root[data-view="map"] .cc-map-col .map-canvas-wrap {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* Full actual map */
+  .cc-root[data-view="map"] .cc-map-col .map-canvas {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* =======================================================
+     ASK INDICE — MAP ONLY
+     ======================================================= */
+
+  /* Hide the old header/actionbar Ask button */
+  .cc-root[data-view="map"] .cc-actionbar-tools .cc-askhead {
+    display: none !important;
+  }
+
+  /* Put Ask Indice over the map */
+  .cc-root[data-view="map"] .cc-map-tools {
+    position: absolute !important;
+    top: 18px !important;
+    right: 12px !important;
+    z-index: 1400 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    pointer-events: none !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-tools .cc-askhead {
+    display: flex !important;
+    pointer-events: auto !important;
+
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    border-radius: 10px !important;
+  }
+
+  .cc-root[data-view="map"] .cc-map-tools .cc-askhead span {
+    display: none !important;
+  }
+
+  /* =======================================================
+     LIST / MAP TOGGLE — CENTRED, ABOVE THE BOTTOM
+     ======================================================= */
+
+  .cc-root[data-view="map"] .cc-views {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+
+    bottom: calc(42px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+
+    height: 48px !important;
+    min-height: 48px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 12px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25) !important;
+
+    z-index: 1500 !important;
+  }
+
+  .cc-root[data-view="map"] .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-root[data-view="map"] .cc-views button {
+    all: unset !important;
+
+    width: 120px !important;
+    height: 48px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    color: var(--cc-text) !important;
+
+    font: 650 13px system-ui, sans-serif !important;
+
+    cursor: pointer !important;
+  }
+
+  /* =======================================================
+     LIST VIEW — SAME CENTRED CONTROL
+     ======================================================= */
+
+  .cc-root[data-view="list"] .cc-views {
+    position: fixed !important;
+
+    left: 50% !important;
+    right: auto !important;
+
+    bottom: calc(42px + env(safe-area-inset-bottom)) !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 120px !important;
+    min-width: 120px !important;
+    max-width: 120px !important;
+
+    height: 48px !important;
+    min-height: 48px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 12px !important;
+
+    background: var(--cc-panel) !important;
+    color: var(--cc-text) !important;
+
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25) !important;
+
+    z-index: 1500 !important;
+  }
+
+  .cc-root[data-view="list"] .cc-views::before {
+    display: none !important;
+    content: none !important;
+  }
+
+  .cc-root[data-view="list"] .cc-views button {
+    all: unset !important;
+
+    width: 120px !important;
+    height: 48px !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    color: var(--cc-text) !important;
+
+    font: 650 13px system-ui, sans-serif !important;
+
+    cursor: pointer !important;
+  }
+}
+
+/* =========================================================
+   CHECK RATES — KEEP CTA LOCKED TO CARD FOOTER
+   ========================================================= */
+
+.cc-card-foot {
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.cc-card-actions {
+  margin-left: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.cc-book-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  height: 32px !important;
+  padding: 0 10px !important;
+  border-radius: 8px !important;
+}
+
+@media (max-width: 760px) {
+  .cc-card-foot {
+    margin-top: 4px !important;
+    padding-top: 5px !important;
+  }
+
+  .cc-book-btn {
+    height: 30px !important;
+    padding: 0 9px !important;
+    font-size: 11px !important;
+  }
+
+  .cc-compare {
+    height: 30px !important;
+    padding: 0 8px !important;
+  }
 }

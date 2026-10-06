@@ -266,7 +266,11 @@ function HotelDetailDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="detail-dialog" showCloseButton={false}>
+      <DialogContent
+        className="detail-dialog"
+        showCloseButton={false}
+        data-hotel-detail="true"
+      >
         <div
           className="detail-hero"
           style={{ backgroundImage: `url(${hotel.image_urls[0]})` }}
@@ -1610,7 +1614,7 @@ export function DiscoveryApp({
     body.style.position = "fixed";
     body.style.top = `-${scrollY}px`;
     body.style.width = "100%";
-    body.style.touchAction = "none";
+    body.style.touchAction = "auto";
     if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
 
     return () => {
