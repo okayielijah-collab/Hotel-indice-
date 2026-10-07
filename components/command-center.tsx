@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, ArrowUpRight, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Globe2, Heart, Map as MapIcon, MapPin, Moon, Search, SlidersHorizontal, Sparkles, Star, Sun, Trash2, X } from "lucide-react";
+import { AccountPanel, useAccount } from "./account";
+import { AlertsTab, WatchPrice, useAlerts } from "./alerts";
+
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type CSSProperties, type ReactNode } from "react";
+import { ArrowRight, ArrowUpRight, Banknote, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Globe2, Heart, Map as MapIcon, MapPin, MessageSquare, Moon, Search, SlidersHorizontal, Sparkles, Star, Sun, Trash2, X } from "lucide-react";
 import { MapView } from "@/components/map-view";
 import { amenityLabels, cities, vibeLabels, type Hotel, type PriceTier } from "@/lib/hotels";
 import { popularDestinations } from "@/lib/destinations";
@@ -33,7 +36,20 @@ const examples = [
   "A work trip to Lagos with fast wifi",
   "A quiet Bali escape with a pool under $180",
 ];
-const BINS = 12;
+// Footer links. Change these if your pages live somewhere else. Leave CONTACT_EMAIL empty to hide the Contact link.
+const SITE_LINKS = { about: "/about", privacy: "/privacy", terms: "/terms" };
+const CONTACT_EMAIL = "";
+// Optional: paste a good photo link for a city and the tile uses it. Example: Lisbon: "https://...".
+const TILE_PHOTOS: Record<string, string> = {};
+const POPULAR_TRIPS = [
+  { city: "Paris", title: "A romantic weekend in Paris", query: "A romantic weekend in Paris with a spa" },
+  { city: "Lagos", title: "A work trip to Lagos", query: "A work trip to Lagos with fast wifi" },
+  { city: "Bali", title: "A quiet Bali escape", query: "A quiet Bali escape with a pool" },
+  { city: "Tokyo", title: "A stylish stay in Tokyo", query: "A stylish stay in Tokyo with breakfast" },
+  { city: "London", title: "A city break in London", query: "A city break in London with fast wifi" },
+  { city: "New York", title: "A weekend in New York", query: "A weekend in New York with a gym" },
+];
+const BINS = 44;
 const THEME_KEY = "hotel-indice:cc-theme";
 
 // Approximate mid-market rates (USD base, Aug 2026). Fixed values: swap for a live feed before showing them as exact.
@@ -434,14 +450,16 @@ function bounds(values: number[], fallback: Range, round: (v: number, up: boolea
   return [round(lo - pad, false), round(hi + pad, true)];
 }
 
-function RangeStrip({ title, summary, values, limits, range, step, onChange, label }: {
+function RangeStrip({ title, summary, values, limits, range, step, onChange, label, icon, tone, format }: {
   title: string; summary: string; values: number[]; limits: Range; range: Range; step: number; onChange: (r: Range) => void; label: string;
+  icon: ReactNode; tone: "price" | "rating" | "reviews"; format: (value: number) => string;
 }) {
   const [min, max] = limits;
   const span = Math.max(max - min, 1e-9);
   const bins = useMemo(() => {
     const density = new Array<number>(BINS).fill(0);
-    const bandwidth = Math.max(span / 9, step * 2);
+    // A smooth curve of where the stays sit, so a handful of hotels still reads as a shape.
+    const bandwidth = Math.max(span / 16, step);
 
     values.forEach((value) => {
       for (let i = 0; i < BINS; i++) {
@@ -458,24 +476,27 @@ function RangeStrip({ title, summary, values, limits, range, step, onChange, lab
       const normalized = count / peak;
 
       return {
-        h: 2 + Math.pow(normalized, 0.85) * 62,
+        h: 3 + Math.pow(normalized, 0.85) * 97,
+        t: i / Math.max(BINS - 1, 1),
         on: mid >= range[0] && mid <= range[1],
       };
     });
   }, [values, min, span, range, step]);
+  const ticks = [0, 1, 2, 3, 4].map((i) => format(min + (span * i) / 4));
   const left = ((range[0] - min) / span) * 100;
   const right = ((range[1] - min) / span) * 100;
   return (
-    <div>
-      <div className="cc-rng-title"><span>{title}</span><b>{summary}</b></div>
+    <div data-tone={tone}>
+      <div className="cc-rng-title"><span className="cc-rng-chip">{icon}{title}</span><b>{summary}</b></div>
       <div className="cc-rng">
-        <div className="cc-hist" aria-hidden>{bins.map((b, i) => <i key={i} className={b.on ? "on" : ""} style={{ height: `${b.h}%` }} />)}</div>
+        <div className="cc-hist" aria-hidden>{bins.map((b, i) => <i key={i} className={b.on ? "on" : ""} style={{ height: `${b.h}%`, ["--t" as string]: b.t } as CSSProperties} />)}</div>
         <div className="cc-rng-track" aria-hidden><div className="cc-rng-fill" style={{ left: `${left}%`, width: `${Math.max(right - left, 0)}%` }} /></div>
         <input type="range" min={min} max={max} step={step} value={range[0]} aria-label={`Minimum ${label}`}
           onChange={(e) => onChange([Math.min(Number(e.target.value), range[1]), range[1]])} />
         <input type="range" min={min} max={max} step={step} value={range[1]} aria-label={`Maximum ${label}`}
           onChange={(e) => onChange([range[0], Math.max(Number(e.target.value), range[0])])} />
       </div>
+      <div className="cc-rng-ticks" aria-hidden>{ticks.map((tick, i) => <span key={i}>{tick}</span>)}</div>
     </div>
   );
 }
@@ -550,7 +571,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [store, setStore] = useState<TripStore>({ trips: [], stays: [] });
   const [tripsLoaded, setTripsLoaded] = useState(false);
   const [tripsOpen, setTripsOpen] = useState(false);
-  const [tripsTab, setTripsTab] = useState<"trips" | "stays">("trips");
+  const [tripsTab, setTripsTab] = useState<"trips" | "stays" | "alerts">("trips");
   const [currentTripId, setCurrentTripId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [lastSearch, setLastSearch] = useState<LastSearch | null>(null);
@@ -602,6 +623,8 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   }, [store, tripsLoaded]);
 
   const updateStore = (change: (current: TripStore) => TripStore) => setStore(change);
+  const account = useAccount(store, setStore, tripsLoaded);
+  const alerts = useAlerts(account);
 
   async function submitListing(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -867,7 +890,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   return (
-    <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"}>
+    <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"} data-entered={entered ? "true" : "false"}>
       <header className="cc-head">
         <div className="cc-brand"><span className="cc-brand-mark" aria-hidden>H</span><span>Hotel <em>Indice</em></span></div>
         <div className="cc-head-search" data-open={plannerOpen ? "true" : "false"}>
@@ -908,16 +931,110 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             <div className="cc-hero-chips">
               {examples.slice(0, 3).map((ex) => <button type="button" key={ex} onClick={() => { setHeroText(ex); void ask(ex); }}>{ex}</button>)}
             </div>
-            <button type="button" className="cc-hero-browse" onClick={() => setEntered(true)}>Or browse all {base.length} stays</button>
+            <div className="cc-hero-links">
+              <button type="button" className="cc-hero-browse" onClick={() => setEntered(true)}>Browse all {base.length} stays</button>
+              <button type="button" className="cc-hero-browse" onClick={() => { setEntered(true); setPlannerOpen(true); }}>Pick dates and guests</button>
+            </div>
           </div>
         </section>
+      )}
+      {!entered && (
+        <div className="cc-landing">
+          <section className="cc-sec" aria-labelledby="cc-how">
+            <h2 id="cc-how">How it works</h2>
+            <ol className="cc-steps">
+              <li><b>1</b><h3>Describe your trip</h3><p>Say it the way you would tell a friend. Where, who is coming and what matters.</p></li>
+              <li><b>2</b><h3>We match a few stays</h3><p>Each one comes with why it fits and what to watch out for.</p></li>
+              <li><b>3</b><h3>Check the live rate</h3><p>Open our booking partner to see today's price before you decide.</p></li>
+            </ol>
+          </section>
+
+          {(() => {
+            const pool = base.filter((m) => m.hotel.review_count >= 100);
+            const example = [...(pool.length ? pool : base)].sort((a, b) => b.hotel.rating - a.hotel.rating)[0]?.hotel;
+            if (!example) return null;
+            const names = example.amenities.slice(0, 2).map((a) => (amenityLabels[a] || a.replaceAll("_", " ")).toLowerCase());
+            const why = names.length ? `Fits a trip that wants ${names.join(" and ")}.` : "";
+            const notes = (example.editorial_notes ?? "").trim();
+            const firstSentence = (notes.match(/^.*?[.!?](\s|$)/)?.[0] ?? notes).trim();
+            return (
+              <section className="cc-sec" aria-labelledby="cc-ex">
+                <h2 id="cc-ex">What a result looks like</h2>
+                <p className="cc-sec-sub">A real stay from our catalog, with the reasons we show for every match.</p>
+                <article className="cc-ex">
+                  <div className="cc-ex-photo"><HotelPhoto src={example.image_urls[0]} name={example.name} eager={false} /></div>
+                  <div className="cc-ex-body">
+                    <small>{example.city}, {example.country}</small>
+                    <h3>{example.name}</h3>
+                    <p className="cc-ex-meta">
+                      <span>★ {example.rating.toFixed(1)}{example.review_count > 0 ? ` from ${example.review_count} reviews` : ""}</span>
+                      <span>{example.estimated_price_per_night > 0 ? `about ${formatPrice(example.estimated_price_per_night)} a night` : "rate on request"}</span>
+                    </p>
+                    {why && <><h4>Why it fits</h4><p>{why}</p></>}
+                    {firstSentence && <><h4>Good to know</h4><p>{firstSentence}</p></>}
+                  </div>
+                </article>
+              </section>
+            );
+          })()}
+
+          <section className="cc-sec" aria-labelledby="cc-pop">
+            <h2 id="cc-pop">Popular trips</h2>
+            <p className="cc-sec-sub">Tap one to see matches. Or describe your own trip above.</p>
+            <div className="cc-tiles">
+              {(() => {
+                // A photo is used only once on this row, so a repeated catalog photo never shows twice.
+                const used = new Set<string>();
+                return POPULAR_TRIPS.map((trip) => {
+                  const candidate = TILE_PHOTOS[trip.city] ?? base.find((m) => m.hotel.city === trip.city)?.hotel.image_urls[0];
+                  const photo = candidate && !used.has(candidate) ? candidate : undefined;
+                  if (photo) used.add(photo);
+                  return (
+                    <button type="button" key={trip.city} className="cc-tile" disabled={asking} onClick={() => { setHeroText(trip.query); void ask(trip.query); }}>
+                      <span className="cc-tile-photo"><HotelPhoto src={photo} name={trip.city} eager={false} /></span>
+                      <span className="cc-tile-title">{trip.title}</span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </section>
+
+          <section className="cc-sec cc-trust" aria-label="Why people trust Hotel Indice">
+            <div><h3>Never ranked by commission</h3><p>Some links may earn us a fee. It never changes which stays we show or in what order.</p></div>
+            <div><h3>Live rates, checked by you</h3><p>You see the current rate with the booking partner before you pay.</p></div>
+            <div><h3>Honest about the downsides</h3><p>Every match tells you what to watch out for, like noise or small rooms.</p></div>
+            <div><h3>Price alerts</h3><p>Watch a stay and we email you when the price drops.</p></div>
+          </section>
+
+          <section className="cc-sec cc-own">
+            <div><h2>Own a hotel?</h2><p>Get it in front of people who are planning a trip. It takes two minutes.</p></div>
+            <button type="button" onClick={openListing}>List your hotel</button>
+          </section>
+
+          <footer className="cc-footer">
+            <div className="cc-footer-top">
+              <div><strong>Hotel Indice</strong><p>Find the hotel that actually fits your trip.</p></div>
+              <nav aria-label="Footer">
+                <button type="button" onClick={() => setEntered(true)}>Browse all stays</button>
+                <button type="button" onClick={openListing}>List your hotel</button>
+                <a href={SITE_LINKS.about}>About</a>
+                <a href={SITE_LINKS.privacy}>Privacy</a>
+                <a href={SITE_LINKS.terms}>Terms</a>
+                {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>}
+              </nav>
+            </div>
+            <p className="cc-footer-note">Some links may earn Hotel Indice a commission. This never affects how stays are matched or presented.</p>
+            <p className="cc-footer-note">© {new Date().getFullYear()} Hotel Indice</p>
+          </footer>
+        </div>
       )}
       {entered && (
         <>
       <div className="cc-strip">
-        <RangeStrip title="Price / night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
-        <RangeStrip title="Guest rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
-        <RangeStrip title="Reviews" label="review count" summary={`${reviewRange[0].toLocaleString("en-US")} to ${reviewRange[1].toLocaleString("en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
+        <RangeStrip icon={<Banknote size={13} aria-hidden />} tone="price" format={(v) => formatPrice(Math.round(v / 5) * 5)} title="Price / night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
+        <RangeStrip icon={<Star size={13} aria-hidden />} tone="rating" format={(v) => v.toFixed(1)} title="Guest rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
+        <RangeStrip icon={<MessageSquare size={13} aria-hidden />} tone="reviews" format={(v) => Math.round(v).toLocaleString("en-US")} title="Reviews" label="review count" summary={`${reviewRange[0].toLocaleString("en-US")} to ${reviewRange[1].toLocaleString("en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
       </div>
 
       <div className="cc-views" role="group" aria-label="Switch view">
@@ -1211,6 +1328,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                 <div className="cc-dm-actions">
                   <button type="button" className="cc-dm-book" onClick={() => openBooking(hotel.id)}>Book this hotel</button>
                   <button type="button" className="cc-dm-save" aria-pressed={stayIds.has(hotel.id)} onClick={() => toggleStay(detail)}><Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden /> {stayIds.has(hotel.id) ? "Saved" : "Save stay"}</button>
+                  <WatchPrice
+                    hotel={hotel}
+                    dates={trip.checkIn && trip.checkOut ? { checkIn: trip.checkIn, checkOut: trip.checkOut } : rateDates ? { checkIn: rateDates.checkIn, checkOut: rateDates.checkOut } : null}
+                    adults={trip.adults || 2}
+                    children={trip.children || 0}
+                    signedIn={Boolean(account.session)}
+                    alerts={alerts}
+                    onNeedSignIn={() => { setDetailId(null); setTripsTab("alerts"); setTripsOpen(true); }}
+                  />
                 </div>
               </div>
               <div className="cc-tabs" role="tablist">
@@ -1422,9 +1548,11 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               <h2>Your trips</h2>
               <button type="button" className="cc-modal-x" onClick={() => setTripsOpen(false)} aria-label="Close" autoFocus><X size={18} /></button>
             </div>
+            <AccountPanel account={account} />
             <div className="cc-tabs" role="tablist">
               <button type="button" role="tab" aria-selected={tripsTab === "trips"} onClick={() => setTripsTab("trips")}>Trips ({store.trips.length})</button>
               <button type="button" role="tab" aria-selected={tripsTab === "stays"} onClick={() => setTripsTab("stays")}>Saved stays ({store.stays.length})</button>
+              <button type="button" role="tab" aria-selected={tripsTab === "alerts"} onClick={() => setTripsTab("alerts")}>Alerts ({alerts.alerts.length})</button>
             </div>
             <div className="cc-drawer-body">
               {tripsTab === "trips" && (store.trips.length === 0
@@ -1448,6 +1576,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                       </section>
                     );
                   }))}
+              {tripsTab === "alerts" && <AlertsTab alerts={alerts} signedIn={Boolean(account.session)} formatPrice={formatPrice} />}
               {tripsTab === "stays" && (store.stays.length === 0
                 ? <p className="cc-drawer-empty">Tap the heart on a stay to keep it here.</p>
                 : store.stays.map((item) => (
@@ -1461,7 +1590,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                     </div>
                   )))}
             </div>
-            <p className="cc-drawer-note">Saved on this device only. <button type="button" className="cc-linkbtn" onClick={() => { setTripsOpen(false); openListing(); }}>Own a hotel? List it</button></p>
+            <p className="cc-drawer-note">{account.session ? "Synced to your account." : "Saved on this device. Sign in above to keep them everywhere."} <button type="button" className="cc-linkbtn" onClick={() => { setTripsOpen(false); openListing(); }}>Own a hotel? List it</button></p>
           </aside>
         </div>
       )}

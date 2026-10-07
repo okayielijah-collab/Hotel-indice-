@@ -5,6 +5,7 @@ import { interpretTrip, rankHotels, refineWithAI } from "@/lib/matching";
 import { aiAllowed, interpretWithAI } from "@/lib/interpret";
 import { getHotelInventory } from "@/lib/inventory";
 import { getHotelProvider } from "@/lib/providers";
+import { cachedSearchInventory } from "@/lib/providers/cache";
 import { normalizeProviderInventory } from "@/lib/providers/types";
 import {
   findTripadvisorIdsForHotels,
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const providerResult =
       catalog.source === "supabase" && provider && hasStayDates
-        ? await provider.searchInventory({
+        ? await cachedSearchInventory(provider, {
             hotelIds,
             destination:
               interpretedTrip.destination || trip.destination,

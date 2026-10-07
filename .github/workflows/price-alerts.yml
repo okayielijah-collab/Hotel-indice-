@@ -1,0 +1,19 @@
+name: Check price alerts
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the site to check every alert
+        env:
+          ALERTS_URL: ${{ secrets.ALERTS_URL }}
+          ALERTS_CRON_SECRET: ${{ secrets.ALERTS_CRON_SECRET }}
+        run: |
+          curl --fail --silent --show-error --max-time 150 -X POST \
+            -H "Authorization: Bearer $ALERTS_CRON_SECRET" \
+            "$ALERTS_URL"
