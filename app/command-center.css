@@ -333,6 +333,62 @@
   .cc-strip { gap: 16px; }
 }
 @media (max-width: 760px) {
+  .cc-tray {
+    width: fit-content;
+    max-width: calc(100% - 16px);
+    margin: 6px 8px 8px;
+    padding: 6px 8px;
+    gap: 10px;
+    border-radius: 9px;
+    box-shadow: none;
+  }
+
+  .cc-tray-copy {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .cc-tray-copy strong {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .cc-tray-copy span {
+    display: none;
+  }
+
+  .cc-tray-go {
+    padding: 6px 9px;
+    border-radius: 7px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+
+  .cc-tray {
+    margin: 6px 8px 8px;
+    padding: 7px 9px;
+    gap: 8px;
+    border-radius: 9px;
+  }
+
+  .cc-tray-copy strong {
+    font-size: 11px;
+  }
+
+  .cc-tray-copy span {
+    font-size: 10px;
+  }
+
+  .cc-tray-go {
+    padding: 6px 9px;
+    border-radius: 7px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+
   .cc-root { grid-template-rows: auto auto auto minmax(0, 1fr); }
   .cc-strip { grid-template-columns: 1fr; gap: 0; max-height: 0; padding: 0 22px; overflow: hidden; border: 0; }
   .cc-root[data-strip="open"] .cc-strip { max-height: 260px; padding: 6px 22px 10px; border-bottom: 1px solid var(--cc-line); }
@@ -4109,4 +4165,512 @@
   box-shadow: none !important;
   -webkit-appearance: none;
   appearance: none;
+}
+
+@media (max-width: 760px) {
+  /* Compact trip-understanding panel to match the search bar density */
+  .cc-understanding {
+    padding: 8px 10px !important;
+    min-height: 0 !important;
+  }
+
+  .cc-understanding-tags {
+    margin-top: 4px !important;
+    gap: 4px !important;
+  }
+
+  .cc-understanding-tag {
+    padding: 3px 7px !important;
+    font-size: 10px !important;
+  }
+
+  /* Keep the compare control compact and uniform underneath */
+  .cc-tray {
+    width: calc(100% - 16px);
+    margin: 6px 8px;
+    padding: 6px 8px;
+    min-height: 0;
+  }
+}
+
+
+/* Unified Indice Understands + comparison control */
+.cc-understanding-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 7px;
+}
+
+.cc-understanding-trip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.cc-understanding-title {
+  margin-top: 0 !important;
+  white-space: nowrap;
+}
+
+.cc-understanding-tags {
+  margin-top: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cc-understanding-tag {
+  min-height: 22px;
+  padding: 2px 7px;
+}
+
+.cc-understanding-compare {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+}
+
+.cc-understanding-compare-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: var(--cc-dim);
+}
+
+.cc-understanding-compare-copy strong {
+  color: var(--cc-text);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cc-understanding-compare-copy span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-understanding-compare .cc-tray-go {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .cc-understanding {
+    margin: 6px 8px 0;
+    padding: 8px 10px;
+  }
+
+  .cc-understanding-head {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px;
+  }
+
+  .cc-understanding-actions {
+    width: auto !important;
+  }
+
+  .cc-understanding-main {
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+  }
+
+  .cc-understanding-trip {
+    flex: 1 1 auto;
+    gap: 5px;
+  }
+
+  .cc-understanding-title {
+    font-size: 12px !important;
+  }
+
+  .cc-understanding-tags {
+    gap: 3px;
+  }
+
+  .cc-understanding-tag {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 9px;
+  }
+
+  .cc-understanding-compare {
+    gap: 5px;
+  }
+
+  .cc-understanding-compare-copy span {
+    display: none;
+  }
+
+  .cc-understanding-compare-copy strong {
+    font-size: 10px;
+  }
+
+  .cc-understanding-compare .cc-tray-go {
+    padding: 6px 8px;
+    font-size: 10px;
+    border-radius: 7px;
+  }
+}
+
+
+/* ===== Final micro polish ===== */
+
+/* Indice Understands: tighter, cleaner information density */
+.cc-understanding {
+  padding: 9px 12px !important;
+}
+
+.cc-understanding-main {
+  gap: 10px !important;
+  margin-top: 5px !important;
+}
+
+.cc-understanding-trip {
+  gap: 5px !important;
+}
+
+.cc-understanding-title {
+  font-size: 15px !important;
+}
+
+.cc-understanding-tags {
+  gap: 4px !important;
+}
+
+.cc-understanding-tag {
+  min-height: 21px !important;
+  padding: 2px 7px !important;
+}
+
+/* Keep comparison compact and visually attached to Indice */
+.cc-understanding-compare {
+  gap: 7px !important;
+}
+
+.cc-understanding-compare-copy {
+  line-height: 1.2;
+}
+
+.cc-understanding-compare-copy strong {
+  font-size: 10.5px !important;
+}
+
+.cc-understanding-compare-copy span {
+  font-size: 9.5px !important;
+  max-width: 150px !important;
+}
+
+.cc-understanding-compare .cc-tray-go {
+  padding: 6px 9px !important;
+  font-size: 10.5px !important;
+}
+
+/* Hotel cards: consistent description rhythm */
+.cc-card-why {
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+  min-height: 36px;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+/* Slightly tighter card content */
+.cc-card-body {
+  gap: 4px !important;
+  padding: 7px 9px 9px !important;
+}
+
+.cc-card-foot {
+  padding-top: 5px !important;
+}
+
+/* Mobile: keep the whole Indice strip compact */
+@media (max-width: 760px) {
+  .cc-understanding {
+    padding: 7px 9px !important;
+  }
+
+  .cc-understanding-main {
+    gap: 6px !important;
+    margin-top: 4px !important;
+  }
+
+  .cc-understanding-trip {
+    gap: 4px !important;
+  }
+
+  .cc-understanding-title {
+    font-size: 12px !important;
+  }
+
+  .cc-understanding-tag {
+    min-height: 19px !important;
+    padding: 1px 5px !important;
+    font-size: 9px !important;
+  }
+
+  .cc-understanding-compare {
+    gap: 4px !important;
+  }
+
+  .cc-understanding-compare-copy strong {
+    font-size: 9.5px !important;
+  }
+
+  .cc-understanding-compare .cc-tray-go {
+    padding: 5px 7px !important;
+    font-size: 9.5px !important;
+  }
+
+  .cc-card-why {
+    min-height: 30px;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+  }
+}
+
+/* =========================================================
+   FINAL MOBILE MICRO PASS
+   ========================================================= */
+
+@media (max-width: 760px) {
+
+  /* Prevent any accidental horizontal page overflow */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .cc-root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  /* Compact mobile header */
+  .cc-head {
+    gap: 8px !important;
+    padding: 8px 10px 6px !important;
+    overflow: hidden;
+  }
+
+  .cc-brand {
+    gap: 7px !important;
+    font-size: 18px !important;
+  }
+
+  .cc-tag {
+    display: none !important;
+  }
+
+  .cc-head-end {
+    gap: 6px !important;
+    min-width: 0;
+  }
+
+  /* Planner controls */
+  .cc-hero,
+  .cc-filters,
+  .cc-search {
+    max-width: 100% !important;
+  }
+
+  /* Search */
+  .cc-search {
+    margin: 6px 8px 0 !important;
+    min-height: 42px !important;
+    border-radius: 10px !important;
+  }
+
+  .cc-search input {
+    font-size: 14px !important;
+  }
+
+  /* Indice Understands */
+  .cc-understanding {
+    margin: 6px 8px 0 !important;
+    padding: 8px 9px !important;
+    border-radius: 10px !important;
+  }
+
+  .cc-understanding-head {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+  }
+
+  .cc-understanding-eyebrow {
+    font-size: 8.5px !important;
+    letter-spacing: .1em !important;
+  }
+
+  .cc-understanding-actions {
+    width: auto !important;
+    flex: none !important;
+    gap: 4px !important;
+  }
+
+  .cc-understanding-main {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin-top: 4px !important;
+  }
+
+  .cc-understanding-trip {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 4px !important;
+  }
+
+  .cc-understanding-title {
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cc-understanding-tags {
+    min-width: 0 !important;
+    gap: 3px !important;
+  }
+
+  .cc-understanding-tag {
+    min-height: 19px !important;
+    padding: 1px 5px !important;
+    font-size: 8.5px !important;
+    white-space: nowrap;
+  }
+
+  /* Compare stays stays inside the Indice area */
+  .cc-understanding-compare {
+    flex: none !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+  }
+
+  .cc-understanding-compare-copy {
+    display: none !important;
+  }
+
+  .cc-understanding-compare .cc-tray-go {
+    padding: 5px 7px !important;
+    border-radius: 7px !important;
+    font-size: 9.5px !important;
+    white-space: nowrap;
+  }
+
+  /* If an old standalone compare tray still exists,
+     don't let it dominate the mobile screen. */
+  .cc-root .cc-tray {
+    display: none !important;
+  }
+
+  /* One clean column of stays */
+  .cc-list {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 9px !important;
+    padding: 9px 8px 90px !important;
+  }
+
+  /* Mobile cards */
+  .cc-card {
+    width: 100% !important;
+    border-radius: 12px !important;
+  }
+
+  .cc-card-media {
+    height: 150px !important;
+  }
+
+  .cc-card-body {
+    padding: 8px 10px 9px !important;
+    gap: 4px !important;
+  }
+
+  .cc-card-city {
+    font-size: 10px !important;
+  }
+
+  .cc-card-name {
+    font-size: 15px !important;
+    line-height: 1.15 !important;
+  }
+
+  .cc-card-why {
+    min-height: 29px !important;
+    max-height: 29px !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+  }
+
+  .cc-tags {
+    gap: 3px !important;
+  }
+
+  .cc-tags span {
+    font-size: 9px !important;
+    padding: 1px 5px !important;
+  }
+
+  .cc-card-foot {
+    padding-top: 4px !important;
+    gap: 5px !important;
+  }
+
+  .cc-card-price b {
+    font-size: 16px !important;
+  }
+
+  .cc-card-price small {
+    font-size: 9px !important;
+  }
+
+  .cc-compare,
+  .cc-book-btn {
+    padding: 5px 7px !important;
+    font-size: 10px !important;
+  }
+
+  /* Hide desktop map beside the list on phones */
+  .cc-root[data-view="list"] .cc-map-col {
+    display: none !important;
+  }
+
+  /* Make the list occupy the whole phone */
+  .cc-root[data-view="list"] .cc-body {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .cc-root[data-view="list"] .cc-list-col {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Don't let desktop map/card positioning leak into mobile */
+  .cc-map-card {
+    display: none !important;
+  }
+
+  /* Keep bottom navigation clear of the final card */
+  .cc-listcta {
+    margin-bottom: 12px !important;
+  }
 }
