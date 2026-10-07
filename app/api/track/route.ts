@@ -41,7 +41,9 @@ export async function POST(request: NextRequest) {
     if (!url || !key) return new NextResponse(null, { status: 204 });
 
     const data = parsed.data;
-    const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/usage_events`, {
+
+    // Analytics are best-effort and must never block the request.
+    void fetch(`${url.replace(/\/$/, "")}/rest/v1/usage_events`, {
       method: "POST",
       headers: {
         apikey: key,
@@ -57,8 +59,11 @@ export async function POST(request: NextRequest) {
         hotel_id: data.hotel_id || null,
         partner: data.partner || null,
       }),
+      signal: AbortSignal.timeout(1000),
+    }).catch(() => {
+      // Tracking failure is intentionally ignored.
     });
-    if (!response.ok) console.error("Usage event failed:", response.status);
+
   } catch (error) {
     console.error("Usage event error:", error);
   }

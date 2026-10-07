@@ -567,7 +567,7 @@ function HeaderSearch({
     >
       <div className="hbar-field hbar-dest">
         <label className="hbar-label" htmlFor={`${id}-dest`}>Where to</label>
-        <input
+        <input spellCheck={false}
           id={`${id}-dest`}
           type="text"
           className="hbar-text"
@@ -983,7 +983,7 @@ function TripForm({
         <label className="sr-only" htmlFor={`${id}-prompt`}>
           Describe your stay
         </label>
-        <textarea
+        <textarea spellCheck={false}
           id={`${id}-prompt`}
           value={trip.query}
           onChange={(event) => update({ query: event.target.value })}
@@ -2577,7 +2577,7 @@ export function DiscoveryApp({
             <label className="sr-only" htmlFor="ask-input">
               Ask about your trip
             </label>
-            <textarea
+            <textarea spellCheck={false}
               id="ask-input"
               value={askText}
               onChange={(event) => setAskText(event.target.value)}

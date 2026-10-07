@@ -22,7 +22,11 @@
 .cc-root * { box-sizing: border-box; }
 :where(.cc-root) button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; }
 :where(.cc-root) input { font: inherit; color: inherit; }
-.cc-root :focus-visible { outline: 2px solid var(--cc-signal); outline-offset: 2px; }
+.cc-root button:focus-visible,
+.cc-root select:focus-visible {
+  outline: 2px solid var(--cc-signal);
+  outline-offset: 2px;
+}
 
 /* header */
 .cc-head { position: relative; z-index: 3; display: flex; align-items: center; gap: 14px; padding: 12px 18px 8px; background: var(--cc-void); }
@@ -3124,4 +3128,985 @@
   .cc-strip .cc-hist { height: 42px; }
   .cc-strip .cc-rng-track { top: 48px; }
   .cc-strip .cc-rng input[type="range"] { top: 38px; }
+}
+
+/* ---- polish ---- */
+.cc-list { align-items: stretch; }
+.cc-card .cc-card-body { flex: 1 1 auto !important; }
+.cc-card .cc-card-foot { margin-top: auto !important; }
+.cc-card-price { flex: 0 0 auto; }
+.cc-card-price small { white-space: nowrap; }
+.cc-card .cc-note-line, .cc-card .cc-unsure { color: color-mix(in srgb, var(--cc-text) 80%, transparent) !important; font-size: 13px !important; line-height: 1.4; }
+.cc-root[data-theme="light"] .cc-card .cc-note-line, .cc-root[data-theme="light"] .cc-card .cc-unsure { color: #3d5559 !important; }
+.cc-card .cc-book-btn { color: var(--cc-signal) !important; background: transparent !important; border: 1px solid var(--cc-signal) !important; }
+.cc-card .cc-book-btn:hover { color: var(--cc-on-signal) !important; background: var(--cc-signal) !important; filter: none; }
+.cc-root:not([data-theme="light"]) .hp-cluster { background: var(--cc-signal) !important; color: var(--cc-on-signal) !important; border-color: #000 !important; }
+.cc-strip .cc-rng-ticks { position: relative; display: block; height: 14px; padding: 0; }
+.cc-strip .cc-rng-ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+
+/* ===== Landing page spacing polish ===== */
+
+.cc-hero {
+  padding: clamp(32px, 6vh, 68px) 20px 28px;
+}
+
+.cc-landing {
+  padding-top: 0;
+}
+
+.cc-sec {
+  padding: 30px 0 8px;
+}
+
+.cc-landing > .cc-sec:first-child {
+  padding-top: 20px;
+}
+
+@media (max-width: 760px) {
+  .cc-hero {
+    padding: 34px 16px 24px;
+  }
+
+  .cc-landing > .cc-sec:first-child {
+    padding-top: 16px;
+  }
+
+  .cc-sec {
+    padding-top: 28px;
+  }
+}
+
+
+/* ===== Bottom landing section polish ===== */
+
+.cc-own {
+  margin-top: 28px;
+  padding: 18px 22px;
+  min-height: 82px;
+}
+
+.cc-own h2 {
+  margin: 0 0 3px;
+  font-size: 22px;
+}
+
+.cc-own p {
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.cc-own button {
+  padding: 11px 20px;
+  border-radius: 11px;
+}
+
+.cc-footer {
+  margin-top: 30px;
+  padding-top: 22px;
+}
+
+.cc-footer-top {
+  gap: 16px;
+}
+
+.cc-footer-top p {
+  margin-top: 3px;
+  font-size: 13.5px;
+}
+
+.cc-footer-note {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.cc-footer-note + .cc-footer-note {
+  margin-top: 7px;
+}
+
+@media (max-width: 860px) {
+  .cc-own {
+    padding: 18px 20px;
+  }
+}
+
+
+/* ===== Home navigation ===== */
+
+.cc-homebtn {
+  padding: 8px 4px;
+  color: inherit;
+  font: 500 14px system-ui, sans-serif;
+  opacity: .82;
+}
+
+.cc-homebtn:hover {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 700px) {
+  .cc-homebtn {
+    display: none;
+  }
+}
+
+
+/* ===== Pixel home brand mark ===== */
+
+.cc-home-mark {
+  position: relative;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.cc-home-mark:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.cc-home-mark:active {
+  transform: translateY(0);
+}
+
+.cc-home-mark svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  shape-rendering: crispEdges;
+}
+
+
+/* =========================================================
+   MOBILE LANDING PASS
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  /* ---------- Header ---------- */
+
+  .cc-root[data-entered="false"] .cc-head {
+    padding: 10px 12px 6px;
+    gap: 8px;
+    flex-wrap: nowrap !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand {
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex: none;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand-mark svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand > span:last-child {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-search {
+    display: none !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end {
+    width: auto;
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding-left: 0;
+    gap: 6px;
+    overflow: visible !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end > * {
+    height: 36px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-listbtn {
+    display: none;
+  }
+
+  .cc-root[data-entered="false"] .cc-theme {
+    width: 36px;
+    min-width: 36px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    padding: 0 8px;
+    height: 36px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency select {
+    font-size: 12px;
+  }
+
+  .cc-root[data-entered="false"] .cc-tripsbtn {
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  /* ---------- Hero ---------- */
+
+  .cc-root[data-entered="false"] .cc-hero {
+    padding: 42px 16px 22px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-inner {
+    width: 100%;
+    gap: 14px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero h1 {
+    max-width: 360px;
+    font-size: clamp(34px, 10vw, 44px);
+    line-height: 1.04;
+    letter-spacing: -.035em;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero p {
+    max-width: 330px;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  /* Search becomes stacked: input + button */
+  .cc-root[data-entered="false"] .cc-hero-form {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 8px 10px;
+    padding: 10px;
+    border-radius: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-form input {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 0;
+    font-size: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-form button {
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-chips {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-chips button {
+    padding: 7px 10px;
+    font-size: 11.5px;
+    line-height: 1.25;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-links {
+    gap: 8px 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-browse {
+    font-size: 12.5px;
+  }
+
+  /* ---------- Landing content ---------- */
+
+  .cc-root[data-entered="false"] .cc-landing {
+    width: 100%;
+    padding: 0 16px 28px;
+  }
+
+  .cc-root[data-entered="false"] .cc-sec {
+    padding: 30px 0 4px;
+  }
+
+  .cc-root[data-entered="false"] .cc-landing > .cc-sec:first-child {
+    padding-top: 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-sec h2 {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .cc-root[data-entered="false"] .cc-sec-sub {
+    margin-bottom: 16px;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+
+  /* ---------- How it works ---------- */
+
+  .cc-root[data-entered="false"] .cc-steps {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps li {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps li b {
+    width: 27px;
+    height: 27px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 50%;
+    margin-bottom: 9px;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps h3 {
+    font-size: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Stay match preview ---------- */
+
+  .cc-root[data-entered="false"] .cc-ex {
+    grid-template-columns: 1fr;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  .cc-root[data-entered="false"] .cc-ex-photo {
+    min-height: 190px;
+    aspect-ratio: 16 / 10;
+  }
+
+  .cc-root[data-entered="false"] .cc-ex-body {
+    padding: 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-ex-body h3 {
+    font-size: 23px;
+  }
+
+  /* ---------- Popular trips ---------- */
+
+  .cc-root[data-entered="false"] .cc-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-tile {
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .cc-root[data-entered="false"] .cc-tile-photo {
+    aspect-ratio: 1 / .78 !important;
+    border-radius: 12px;
+  }
+
+  .cc-root[data-entered="false"] .cc-tile-title {
+    font-size: 13px !important;
+    line-height: 1.25;
+  }
+
+  /* ---------- Trust ---------- */
+
+  .cc-root[data-entered="false"] .cc-trust {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 24px;
+    padding-top: 22px;
+  }
+
+  .cc-root[data-entered="false"] .cc-trust h3 {
+    font-size: 14px;
+  }
+
+  .cc-root[data-entered="false"] .cc-trust p {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  /* ---------- Own a hotel ---------- */
+
+  .cc-root[data-entered="false"] .cc-own {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-top: 26px;
+    padding: 18px;
+    border-radius: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-own h2 {
+    font-size: 22px;
+  }
+
+  .cc-root[data-entered="false"] .cc-own p {
+    font-size: 13px;
+  }
+
+  .cc-root[data-entered="false"] .cc-own button {
+    width: 100%;
+    padding: 12px 18px;
+  }
+
+  /* ---------- Footer ---------- */
+
+  .cc-root[data-entered="false"] .cc-footer {
+    margin-top: 28px;
+    padding-top: 20px;
+  }
+
+  .cc-root[data-entered="false"] .cc-footer-top {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-footer nav {
+    gap: 12px 18px;
+  }
+
+  .cc-root[data-entered="false"] .cc-footer nav a,
+  .cc-root[data-entered="false"] .cc-footer nav button {
+    font-size: 13px;
+  }
+
+  .cc-root[data-entered="false"] .cc-footer-note {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 380px) {
+  .cc-root[data-entered="false"] .cc-brand > span:last-child {
+    font-size: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    display: none;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero {
+    padding-top: 34px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero h1 {
+    font-size: 34px;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-chips button {
+    font-size: 11px;
+  }
+}
+
+
+/* =========================================================
+   MOBILE LANDING HEADER — keep the front door clean
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .cc-root[data-entered="false"] .cc-head {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Front page does not need result-page controls */
+  .cc-root[data-entered="false"] .cc-fbtn.cc-mobile-only,
+  .cc-root[data-entered="false"] .cc-listbtn,
+  .cc-root[data-entered="false"] .cc-askhead {
+    display: none !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    margin-left: auto;
+    padding-left: 4px;
+    gap: 6px;
+    overflow: visible !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-theme {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    flex: 0 0 auto;
+    min-width: 66px;
+    height: 36px !important;
+    padding: 0 8px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency select {
+    font-size: 12px;
+  }
+
+  .cc-root[data-entered="false"] .cc-tripsbtn {
+    flex: 0 0 auto;
+    height: 36px !important;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+}
+
+/* Extra-small phones: simplify even further */
+@media (max-width: 380px) {
+
+  .cc-root[data-entered="false"] .cc-brand > span:last-child {
+    font-size: 15px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    min-width: 36px;
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency select {
+    width: 28px;
+    font-size: 0;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency select::after {
+    content: "";
+  }
+
+  .cc-root[data-entered="false"] .cc-tripsbtn {
+    padding: 0 7px;
+  }
+
+}
+
+
+/* ===== Mobile: logo-only brand mark ===== */
+
+@media (max-width: 600px) {
+  .cc-root[data-entered="false"] .cc-brand {
+    flex: 0 0 auto;
+    width: 34px;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand > span:last-child {
+    display: none !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-brand-mark {
+    width: 34px;
+    height: 34px;
+    margin: 0;
+  }
+}
+
+
+/* ===== Mobile home header: restore Ask Indice ===== */
+
+@media (max-width: 600px) {
+  .cc-root[data-entered="false"] .cc-askhead {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 36px !important;
+    padding: 0 9px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .cc-root[data-entered="false"] .cc-askhead {
+    padding: 0 7px;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead svg {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+
+/* ===== Final mobile header fit ===== */
+
+@media (max-width: 600px) {
+  .cc-root[data-entered="false"] .cc-head {
+    padding: 8px 8px 6px;
+    gap: 5px;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end {
+    gap: 4px;
+  }
+
+  .cc-root[data-entered="false"] .cc-theme {
+    width: 34px;
+    min-width: 34px;
+    flex-basis: 34px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    min-width: 60px;
+    height: 34px !important;
+    padding: 0 6px;
+  }
+
+  .cc-root[data-entered="false"] .cc-tripsbtn {
+    height: 34px !important;
+    padding: 0 7px;
+    font-size: 11.5px;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead {
+    height: 34px !important;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead svg {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .cc-root[data-entered="false"] .cc-head {
+    padding-left: 6px;
+    padding-right: 6px;
+    gap: 4px;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end {
+    gap: 3px;
+  }
+
+  .cc-root[data-entered="false"] .cc-currency {
+    min-width: 56px;
+  }
+
+  .cc-root[data-entered="false"] .cc-tripsbtn {
+    padding: 0 6px;
+  }
+
+  .cc-root[data-entered="false"] .cc-askhead {
+    padding: 0 7px;
+  }
+}
+
+
+/* =========================================================
+   MOBILE RESULTS CONTROLS — NO OVERLAPPING
+   ========================================================= */
+
+@media (max-width: 760px) {
+
+  /* -------------------------------------------------------
+     MORE FILTERS
+     Bottom sheet sits ABOVE the floating Map/List control.
+     ------------------------------------------------------- */
+
+  .ccb-panel {
+    bottom: 66px !important;
+    top: auto !important;
+    z-index: 1600 !important;
+    max-height: calc(72dvh - 66px) !important;
+  }
+
+  /* If the compare tray exists, give the filter sheet
+     additional clearance. */
+  .cc-root[data-view="list"]:has(.cc-tray) .ccb-panel {
+    bottom: 126px !important;
+    max-height: calc(72dvh - 126px) !important;
+  }
+
+  /* -------------------------------------------------------
+     LIST / MAP SWITCH
+     ------------------------------------------------------- */
+
+  .cc-root[data-view="list"] .cc-views {
+    z-index: 1500 !important;
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* -------------------------------------------------------
+     COMPARE TRAY
+     Keep it out of the hotel-card flow when active.
+     ------------------------------------------------------- */
+
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-tray {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(66px + env(safe-area-inset-bottom)) !important;
+
+    width: auto !important;
+    min-height: 58px !important;
+
+    margin: 0 !important;
+    padding: 7px 9px !important;
+
+    z-index: 1450 !important;
+
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .28) !important;
+  }
+
+  /* Make sure the last hotel and the hotel-list CTA
+     can scroll completely above the fixed tray. */
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-list {
+    padding-bottom: 150px !important;
+  }
+
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-listcta {
+    margin-bottom: 10px !important;
+  }
+
+  /* Keep the Map/List control ABOVE the compare tray,
+     never on top of it. */
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-views {
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) scale(.9) !important;
+  }
+
+}
+
+/* Extra-small phones */
+@media (max-width: 380px) {
+
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-tray {
+    left: 6px !important;
+    right: 6px !important;
+  }
+
+  .cc-root[data-view="list"]:has(.cc-tray) .cc-list {
+    padding-bottom: 148px !important;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE FILTERS — full-screen app view
+   ========================================================= */
+
+.ccb-mobile-filter-head,
+.ccb-mobile-done {
+  display: none;
+}
+
+@media (max-width: 760px) {
+
+  /* The filter panel becomes its own screen.
+     Nothing from the hotel list shows through. */
+  .ccb .ccb-panel-wide {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 5000 !important;
+
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100dvh !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: var(--cc-void) !important;
+    box-shadow: none !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  /* Filter page header */
+  .ccb-mobile-filter-head {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+
+    position: sticky;
+    top: 0;
+    z-index: 2;
+
+    min-height: 58px;
+    padding: 10px 16px;
+
+    border-bottom: 1px solid var(--cc-line);
+    background: var(--cc-void);
+  }
+
+  .ccb-mobile-filter-back {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .ccb-mobile-filter-reset {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cc-signal);
+  }
+
+  /* Individual filters */
+  .ccb .ccb-panel-wide .ccb-pfield {
+    display: flex !important;
+    flex-direction: column;
+    gap: 8px;
+
+    padding: 20px 16px;
+    border-bottom: 1px solid var(--cc-line);
+  }
+
+  .ccb .ccb-panel-wide .ccb-pfield:first-of-type {
+    padding-top: 24px;
+  }
+
+  .ccb .ccb-panel-wide .ccb-label {
+    font-size: 11px;
+    letter-spacing: .08em;
+  }
+
+  .ccb .ccb-panel-wide .ccb-select {
+    width: 100%;
+    height: 48px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  .ccb .ccb-panel-wide .ccb-checks {
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin: 0 -16px;
+  }
+
+  .ccb .ccb-panel-wide .ccb-check {
+    min-height: 50px;
+    padding: 0 16px;
+    border-top: 1px solid var(--cc-line);
+    font-size: 14px;
+  }
+
+  .ccb .ccb-panel-wide .ccb-check:nth-child(odd) {
+    border-right: 1px solid var(--cc-line);
+  }
+
+  /* Bottom action belongs to the filter screen */
+  .ccb .ccb-panel-wide .ccb-done {
+    position: sticky;
+    bottom: 0;
+
+    width: calc(100% - 32px);
+    min-height: 48px;
+    margin: auto 16px 16px;
+
+    border-radius: 11px;
+    font-size: 15px;
+  }
+
+  .ccb-desktop-done {
+    display: none;
+  }
+
+  .ccb-mobile-done {
+    display: inline;
+  }
+
+  /* Prevent the old floating result controls from competing
+     while the filter screen is open. */
+  .ccb:has(.ccb-panel-wide) ~ * {
+    pointer-events: none;
+  }
+}
+
+
+/* Final override: mobile More Filters is a page, not a bottom sheet. */
+@media (max-width: 760px) {
+  .ccb .ccb-panel-wide {
+    top: 0 !important;
+    right: auto !important;
+    left: 0 !important;
+    bottom: auto !important;
+  }
+}
+
+
+/* Clean typing fields: no browser/focus outline inside the search controls. */
+.ccb-text:focus,
+.ccb-text:focus-visible,
+.cc-search input:focus,
+.cc-search input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+/* Keep all Hotel Indice text-entry fields visually clean while typing. */
+.cc-search input,
+.cc-search input:focus,
+.cc-search input:focus-visible,
+.ccb-text,
+.ccb-text:focus,
+.ccb-text:focus-visible {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
 }

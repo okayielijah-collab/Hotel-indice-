@@ -325,14 +325,22 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
     <form className="ccb" onSubmit={(event) => { event.preventDefault(); setOpen(null); onSubmit(); }}>
       <div className="ccb-field ccb-dest">
         <label className="ccb-label" htmlFor={`${id}-dest`}>Where to</label>
-        <input id={`${id}-dest`} type="text" className="ccb-text" list={`${id}-cities`} value={trip.destination} placeholder="Anywhere" autoComplete="off" maxLength={100}
+        <input spellCheck={false} id={`${id}-dest`} type="text" className="ccb-text" list={`${id}-countries`} value={trip.destination} placeholder="Search country or city" autoComplete="off" maxLength={100}
           onChange={(event) => update({ destination: event.target.value })}
           onBlur={(event) => {
             const typed = event.target.value.trim();
             const known = cities.find((city) => city.toLowerCase() === typed.toLowerCase());
             if ((known || typed) !== trip.destination) update({ destination: known || typed });
           }} />
-        <datalist id={`${id}-cities`}>{popularDestinations.map((place) => <option key={place.name} value={place.name}>{place.country}</option>)}</datalist>
+        <datalist id={`${id}-countries`}>
+          {[...new Set([
+            ...popularDestinations.map((place) => place.country),
+            ...popularDestinations.map((place) => place.name),
+            ...popularDestinations.map((place) => `${place.name}, ${place.country}`),
+          ])].map((destination) => (
+            <option key={destination} value={destination} />
+          ))}
+        </datalist>
       </div>
 
       <div className={`ccb-field ccb-pop ccb-dates${open === "dates" ? " is-open" : ""}`}>
@@ -371,6 +379,20 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
         </button>
         {open === "more" && (
           <div className="ccb-panel ccb-panel-wide">
+            <div className="ccb-mobile-filter-head">
+              <button type="button" className="ccb-mobile-filter-back" onClick={() => setOpen(null)}>
+                <ChevronLeft size={18} aria-hidden />
+                <span>Filters</span>
+              </button>
+              <button
+                type="button"
+                className="ccb-mobile-filter-reset"
+                onClick={() => update({ budget: "Any", vibe: "", amenities: [] })}
+              >
+                Reset
+              </button>
+            </div>
+
             <div className="ccb-pfield">
               <label className="ccb-label" htmlFor={`${id}-budget`}>Budget</label>
               <select id={`${id}-budget`} className="ccb-select" value={trip.budget} onChange={(event) => update({ budget: event.target.value as TripForm["budget"] })}>
@@ -395,7 +417,10 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
                 ))}
               </div>
             </div>
-            <button type="button" className="ccb-done ccb-span" onClick={() => setOpen(null)}>Done</button>
+            <button type="button" className="ccb-done ccb-span" onClick={() => setOpen(null)}>
+              <span className="ccb-desktop-done">Done</span>
+              <span className="ccb-mobile-done">Show stays</span>
+            </button>
           </div>
         )}
       </div>
@@ -482,7 +507,19 @@ function RangeStrip({ title, summary, values, limits, range, step, onChange, lab
       };
     });
   }, [values, min, span, range, step]);
-  const ticks = [0, 1, 2, 3, 4].map((i) => format(min + (span * i) / 4));
+  const ticks = (() => {
+    // Round values (for example 100, 200, 300), each placed where it really sits on the slider.
+    const raw = span / 5;
+    const unit = Math.pow(10, Math.floor(Math.log10(raw)));
+    const stepSize = [1, 2, 2.5, 5, 10].map((m) => m * unit).find((s) => s >= raw) ?? raw;
+    const out: { label: string; at: number }[] = [];
+    for (let i = 0, v = Math.ceil(min / stepSize) * stepSize; i < 12 && v <= max + stepSize * 1e-6; i++, v += stepSize) {
+      const value = Number(v.toFixed(6));
+      const text = format(value);
+      if (!out.some((tick) => tick.label === text)) out.push({ label: text, at: (value - min) / span });
+    }
+    return out;
+  })();
   const left = ((range[0] - min) / span) * 100;
   const right = ((range[1] - min) / span) * 100;
   return (
@@ -496,7 +533,7 @@ function RangeStrip({ title, summary, values, limits, range, step, onChange, lab
         <input type="range" min={min} max={max} step={step} value={range[1]} aria-label={`Maximum ${label}`}
           onChange={(e) => onChange([range[0], Math.max(Number(e.target.value), range[0])])} />
       </div>
-      <div className="cc-rng-ticks" aria-hidden>{ticks.map((tick, i) => <span key={i}>{tick}</span>)}</div>
+      <div className="cc-rng-ticks" aria-hidden>{ticks.map((tick) => <span key={tick.at} style={{ left: `calc(11px + (100% - 22px) * ${tick.at})` }}>{tick.label}</span>)}</div>
     </div>
   );
 }
@@ -821,6 +858,10 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       setAiUsed(Boolean(data.enhanced));
       resetRanges();
       setQuery("");
+      setCity("");
+      setTierSet([]);
+      setVibe("");
+      setAmenities([]);
       setSort("match");
       setSelectedId(null);
       setDetailId(null);
@@ -892,7 +933,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   return (
     <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"} data-entered={entered ? "true" : "false"}>
       <header className="cc-head">
-        <div className="cc-brand"><span className="cc-brand-mark" aria-hidden>H</span><span>Hotel <em>Indice</em></span></div>
+        <div className="cc-brand">
+          <button type="button" className="cc-brand-mark cc-home-mark" onClick={() => setEntered(false)} aria-label="Home" title="Home">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 11h3v-3h3V5h4v3h3v3h3v9h-6v-6h-4v6H4z" fill="currentColor"/>
+              <path d="M10 14h4v6h-4z" fill="var(--cc-signal)"/>
+            </svg>
+          </button>
+          <span>Hotel <em>Indice</em></span>
+        </div>
         <div className="cc-head-search" data-open={plannerOpen ? "true" : "false"}>
           <button type="button" className="cc-plan-toggle" aria-expanded={plannerOpen} onClick={() => setPlannerOpen((open) => !open)}>
             <Search size={16} aria-hidden /><b>{trip.destination || "Anywhere"}</b><span>{trip.adults || 2} adults</span><ChevronDown size={16} aria-hidden />
@@ -921,11 +970,11 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       {!entered && (
         <section className="cc-hero">
           <div className="cc-hero-inner">
-            <h1>Find the hotel that actually fits your trip.</h1>
+            <h1>Find the stay that actually fits your trip.</h1>
             <p>Tell us your vibe. We match you to a few stays and say why.</p>
             <form className="cc-hero-form" onSubmit={(e) => { e.preventDefault(); if (heroText.trim()) void ask(heroText); }}>
               <Search size={18} aria-hidden />
-              <input value={heroText} onChange={(e) => setHeroText(e.target.value)} placeholder="A quiet hotel in Lisbon with a pool under $150" aria-label="Describe your trip" />
+              <input value={heroText} onChange={(e) => setHeroText(e.target.value)} placeholder="A quiet stay in Lisbon with a pool under $150" aria-label="Describe your trip" />
               <button type="submit" disabled={asking || !heroText.trim()}>{asking ? "Finding" : "Find stays"}</button>
             </form>
             <div className="cc-hero-chips">
@@ -959,7 +1008,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             const firstSentence = (notes.match(/^.*?[.!?](\s|$)/)?.[0] ?? notes).trim();
             return (
               <section className="cc-sec" aria-labelledby="cc-ex">
-                <h2 id="cc-ex">What a result looks like</h2>
+                <h2 id="cc-ex">What a stay match looks like</h2>
                 <p className="cc-sec-sub">A real stay from our catalog, with the reasons we show for every match.</p>
                 <article className="cc-ex">
                   <div className="cc-ex-photo"><HotelPhoto src={example.image_urls[0]} name={example.name} eager={false} /></div>
@@ -1014,7 +1063,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
           <footer className="cc-footer">
             <div className="cc-footer-top">
-              <div><strong>Hotel Indice</strong><p>Find the hotel that actually fits your trip.</p></div>
+              <div><strong>Hotel Indice</strong><p>Find the stay that actually fits your trip.</p></div>
               <nav aria-label="Footer">
                 <button type="button" onClick={() => setEntered(true)}>Browse all stays</button>
                 <button type="button" onClick={openListing}>List your hotel</button>
@@ -1056,7 +1105,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && isSentence(query)) { e.preventDefault(); void ask(query); } }}
               placeholder="Search by name or city, or describe your stay"
-              aria-label="Search hotels by name or city, or describe your stay and press Enter"
+              aria-label="Search stays by name or city, or describe your stay and press Enter"
             />
           </label>
           {isSentence(query) && <p className="cc-count" style={{ paddingLeft: 12 }}>{asking ? "Finding stays that fit..." : "Press Enter to find stays that fit this"}</p>}
@@ -1237,7 +1286,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                     <div className="cc-card-foot">
                       <div className="cc-card-price">
                         {hotel.estimated_price_per_night > 0
-                          ? <><b>{formatPrice(hotel.estimated_price_per_night)}</b><small>{match.liveRate ? "live rate" : "estimated / night"}</small></>
+                          ? <><b>{formatPrice(hotel.estimated_price_per_night)}</b><small>{match.liveRate ? "live rate" : "est. / night"}</small></>
                           : <><b>Rate not shown</b><small>check the booking site</small></>}
                       </div>
                       <div className="cc-card-actions">
@@ -1293,7 +1342,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           {askOpen && (
             <div className="cc-ask" role="dialog" aria-label="Describe your trip">
               <div className="cc-ask-head"><span>Describe your trip</span><button type="button" onClick={() => setAskOpen(false)} aria-label="Close"><X size={16} /></button></div>
-              <textarea value={askText} maxLength={600} onChange={(e) => setAskText(e.target.value)}
+              <textarea spellCheck={false} value={askText} maxLength={600} onChange={(e) => setAskText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(askText); }}
                 placeholder="Where are you going and what matters most?" aria-label="Describe your trip" autoFocus />
               {!askText && (
@@ -1628,7 +1677,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                       ))}
                     </div>
                   </div>
-                  <label className="cc-field cc-span2"><span>A few words about it (optional)</span><textarea name="description" rows={3} maxLength={600} /></label>
+                  <label className="cc-field cc-span2"><span>A few words about it (optional)</span><textarea spellCheck={false} name="description" rows={3} maxLength={600} /></label>
                   <label className="cc-hp" aria-hidden="true">Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
                 </div>
                 {listState === "error" && <p className="cc-form-error" role="alert">{listError}</p>}

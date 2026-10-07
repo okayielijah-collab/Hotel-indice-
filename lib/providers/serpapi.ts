@@ -339,7 +339,7 @@ export const serpApiProvider: HotelProvider = {
     url.searchParams.set("api_key", apiKey);
 
     // Google returns about 20 stays per page. Read a second page too (set SERPAPI_MAX_PAGES=1 to turn off).
-    const maxPages = Math.min(3, Math.max(1, Number(process.env.SERPAPI_MAX_PAGES) || 2));
+    const maxPages = 1;
     const properties: SerpApiProperty[] = [];
     const seen = new Set<string>();
     let pageUrl = url;

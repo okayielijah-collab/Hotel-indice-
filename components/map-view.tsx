@@ -205,7 +205,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
           if (disposed || !map.current) return;
           const { latitude, longitude, accuracy } = position.coords;
           if (!userMarker.current) {
-            userMarker.current = L.marker([latitude, longitude], { icon, keyboard: false, zIndexOffset: 1000 }).addTo(map.current);
+            userMarker.current = L.marker([latitude, longitude], { icon, keyboard: false, zIndexOffset: -1000, interactive: false }).addTo(map.current);
           } else {
             userMarker.current.setLatLng([latitude, longitude]);
           }
@@ -268,7 +268,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
         import("leaflet").then((L) => {
           if (!map.current || userMarker.current) return;
           const icon = L.divIcon({ className: "user-location-wrap", iconSize: [22, 22], iconAnchor: [11, 11], html: '<span class="user-location-dot"><span class="user-location-pulse"></span></span>' });
-          userMarker.current = L.marker([latitude, longitude], { icon, keyboard: false, zIndexOffset: 1000 }).addTo(map.current);
+          userMarker.current = L.marker([latitude, longitude], { icon, keyboard: false, zIndexOffset: -1000, interactive: false }).addTo(map.current);
           userAccuracy.current = L.circle([latitude, longitude], { radius: accuracy, color: "#2f6a82", fillColor: "#2f6a82", fillOpacity: 0.12, weight: 1 }).addTo(map.current);
         }).catch(() => undefined);
       },
