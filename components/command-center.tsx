@@ -1124,19 +1124,9 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           {aiMatches && (
             <section className="cc-understanding" aria-label="Trip intelligence">
               <div className="cc-understanding-head">
-                <div>
-                  <span className="cc-understanding-eyebrow">
-                    <Sparkles size={12} aria-hidden /> INDICE UNDERSTANDS
-                  </span>
-
-                  <div className="cc-understanding-title">
-                    {interpretedTrip && [
-                      tripPurposeLabel(interpretedTrip),
-                      interpretedTrip.destination,
-                      interpretedTrip.party ? partyLabels[interpretedTrip.party] || interpretedTrip.party : "",
-                    ].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
+                <span className="cc-understanding-eyebrow">
+                  <Sparkles size={12} aria-hidden /> INDICE UNDERSTANDS
+                </span>
 
                 <div className="cc-understanding-actions">
                   {currentTripId && (() => {
@@ -1179,38 +1169,71 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               </div>
 
               {interpretedTrip && (
-                <div className="cc-understanding-tags">
-                  {(interpretedTrip.maxPrice !== null || interpretedTrip.budget !== "Any") && (
-                    <span className="cc-understanding-tag strong">
-                      {interpretedTrip.maxPrice !== null
-                        ? `Under $${interpretedTrip.maxPrice}/night`
-                        : interpretedTrip.budget}
-                    </span>
+                <div className="cc-understanding-main">
+                  <div className="cc-understanding-trip">
+                    <div className="cc-understanding-title">
+                      {interpretedTrip && [
+                        tripPurposeLabel(interpretedTrip),
+                        interpretedTrip.destination,
+                        interpretedTrip.party ? partyLabels[interpretedTrip.party] || interpretedTrip.party : "",
+                      ].filter(Boolean).join(" · ")}
+                    </div>
+
+                    <div className="cc-understanding-tags">
+                      {(interpretedTrip.maxPrice !== null || interpretedTrip.budget !== "Any") && (
+                        <span className="cc-understanding-tag strong">
+                          {interpretedTrip.maxPrice !== null
+                            ? `Under $${interpretedTrip.maxPrice}/night`
+                            : interpretedTrip.budget}
+                        </span>
+                      )}
+
+                      {interpretedTrip.requiredSignals.map((signal) => (
+                        <span className="cc-understanding-tag strong" key={`required-signal-${signal}`}>
+                          {intelligenceLabel(signal)}
+                        </span>
+                      ))}
+
+                      {interpretedTrip.preferredSignals.map((signal) => (
+                        <span className="cc-understanding-tag" key={`preferred-signal-${signal}`}>
+                          {intelligenceLabel(signal)}
+                        </span>
+                      ))}
+
+                      {interpretedTrip.requiredAmenities.map((amenity) => (
+                        <span className="cc-understanding-tag strong" key={`required-amenity-${amenity}`}>
+                          {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                        </span>
+                      ))}
+
+                      {interpretedTrip.preferredAmenities.map((amenity) => (
+                        <span className="cc-understanding-tag" key={`preferred-amenity-${amenity}`}>
+                          {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {compareIds.length >= 2 && (
+                    <div className="cc-understanding-compare">
+                      <div className="cc-understanding-compare-copy">
+                        <strong>{compareIds.length} stays selected</strong>
+                        <span>
+                          {comparing.length > 2
+                            ? `${comparing[0].hotel.name} and ${comparing.length - 1} more`
+                            : comparing.map((m) => m.hotel.name).join(" and ")}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="cc-tray-go"
+                        onClick={() => setCompareOpen(true)}
+                      >
+                        Compare stays <ArrowRight size={14} aria-hidden />
+                      </button>
+                    </div>
                   )}
-
-                  {interpretedTrip.requiredSignals.map((signal) => (
-                    <span className="cc-understanding-tag strong" key={`required-signal-${signal}`}>
-                      {intelligenceLabel(signal)}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.preferredSignals.map((signal) => (
-                    <span className="cc-understanding-tag" key={`preferred-signal-${signal}`}>
-                      {intelligenceLabel(signal)}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.requiredAmenities.map((amenity) => (
-                    <span className="cc-understanding-tag strong" key={`required-amenity-${amenity}`}>
-                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
-                    </span>
-                  ))}
-
-                  {interpretedTrip.preferredAmenities.map((amenity) => (
-                    <span className="cc-understanding-tag" key={`preferred-amenity-${amenity}`}>
-                      {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
-                    </span>
-                  ))}
                 </div>
               )}
             </section>
@@ -1305,17 +1328,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               </aside>
             )}
           </div>
-
-          {compareIds.length >= 2 && (
-            <div className="cc-tray">
-              <div className="cc-tray-copy">
-                <strong>{compareIds.length} stays selected</strong>
-                <span>{comparing.length > 2 ? `${comparing[0].hotel.name} and ${comparing.length - 1} more` : comparing.map((m) => m.hotel.name).join(" and ")}</span>
-              </div>
-              <button type="button" className="cc-tray-go" onClick={() => setCompareOpen(true)}>Compare stays <ArrowRight size={14} aria-hidden /></button>
-            </div>
-          )}
-        </section>
+</section>
 
         <section className="cc-map-col" aria-label="Map">
           <MapView matches={shown} selectedId={selectedId} onSelect={pickOnMap} formatPrice={formatPrice} />
