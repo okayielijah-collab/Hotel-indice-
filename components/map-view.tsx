@@ -25,6 +25,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   const [failed, setFailed] = useState(false);
   const locateRef = useRef<() => void>(() => undefined);
   const centeredOn = useRef<string | null>(null);
+  const fittedLocations = useRef<string>("");
   const drawRef = useRef<(() => void) | null>(null);
   const [locateNote, setLocateNote] = useState("");
 
@@ -181,10 +182,27 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
       };
       draw();
 
-      if (matches.length === 1) {
-        instance.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 13);
-      } else if (matches.length > 1) {
-        instance.fitBounds(L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])), { padding: [65, 65], maxZoom: 14, animate: true });
+      const locationSignature = matches
+        .map(({ hotel }) => `${hotel.id}:${hotel.latitude},${hotel.longitude}`)
+        .sort()
+        .join("|");
+
+      if (locationSignature !== fittedLocations.current) {
+        fittedLocations.current = locationSignature;
+
+        if (matches.length === 1) {
+          instance.setView(
+            [matches[0].hotel.latitude, matches[0].hotel.longitude],
+            13
+          );
+        } else if (matches.length > 1) {
+          instance.fitBounds(
+            L.latLngBounds(
+              matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])
+            ),
+            { padding: [65, 65], maxZoom: 14, animate: true }
+          );
+        }
       }
     }).catch((error) => { console.error("Map pins unavailable", error); setFailed(true); });
     return () => { disposed = true; detach?.(); };
@@ -241,7 +259,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
         centeredOn.current = selectedId;
         const target: [number, number] = [Number(selected.latitude), Number(selected.longitude)];
         if (matches.length < 5) map.current?.flyTo(target, Math.max(map.current.getZoom(), 10), { duration: 0.6 });
-        else map.current?.panTo(target, { animate: true, duration: 0.6 });
+        else map.current?.panInside(target, { padding: [90, 90], animate: true, duration: 0.6 });
       }
     }
   }, [selectedId, matches]);
