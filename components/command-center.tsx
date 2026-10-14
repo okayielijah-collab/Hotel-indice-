@@ -714,6 +714,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "map">("list");
   const [stripOpen, setStripOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<"price" | "rating" | "reviews" | null>(null);
   const [entered, setEntered] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [heroText, setHeroText] = useState("");
@@ -1342,9 +1343,39 @@ async function ask(text: string) {
       {entered && (
         <>
       <div className="cc-strip">
-        <RangeStrip icon={<Banknote size={13} aria-hidden />} tone="price" format={(v) => formatPrice(Math.round(v / 5) * 5)} title={t.pricePerNight} label="price" summary={`${formatPrice(priceRange[0])} ${t.to} ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
-        <RangeStrip icon={<Star size={13} aria-hidden />} tone="rating" format={(v) => v.toFixed(1)} title={t.guestRating} label="rating" summary={`${ratingRange[0].toFixed(1)} ${t.to} ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
-        <RangeStrip icon={<MessageSquare size={13} aria-hidden />} tone="reviews" format={(v) => Math.round(v).toLocaleString("en-US")} title={t.reviews} label="review count" summary={`${reviewRange[0].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")} ${t.to} ${reviewRange[1].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
+        <div className="cc-filter-tabs" role="group" aria-label="Hotel filters">
+          <button type="button" className="cc-filter-tab" aria-expanded={activeFilter === "price"} onClick={() => setActiveFilter(activeFilter === "price" ? null : "price")}>
+            <Banknote size={15} aria-hidden />
+            <span>{t.pricePerNight}</span>
+            <b>{formatPrice(priceRange[0])}–{formatPrice(priceRange[1])}</b>
+          </button>
+          <button type="button" className="cc-filter-tab" aria-expanded={activeFilter === "rating"} onClick={() => setActiveFilter(activeFilter === "rating" ? null : "rating")}>
+            <Star size={15} aria-hidden />
+            <span>{t.guestRating}</span>
+            <b>{ratingRange[0].toFixed(1)}–{ratingRange[1].toFixed(1)}</b>
+          </button>
+          <button type="button" className="cc-filter-tab" aria-expanded={activeFilter === "reviews"} onClick={() => setActiveFilter(activeFilter === "reviews" ? null : "reviews")}>
+            <MessageSquare size={15} aria-hidden />
+            <span>{t.reviews}</span>
+            <b>{reviewRange[0].toLocaleString()}–{reviewRange[1].toLocaleString()}</b>
+          </button>
+        </div>
+
+        {activeFilter === "price" && (
+          <div className="cc-filter-panel">
+            <RangeStrip icon={<Banknote size={13} aria-hidden />} tone="price" format={(v) => formatPrice(Math.round(v / 5) * 5)} title={t.pricePerNight} label="price" summary={`${formatPrice(priceRange[0])} ${t.to} ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
+          </div>
+        )}
+        {activeFilter === "rating" && (
+          <div className="cc-filter-panel">
+            <RangeStrip icon={<Star size={13} aria-hidden />} tone="rating" format={(v) => v.toFixed(1)} title={t.guestRating} label="rating" summary={`${ratingRange[0].toFixed(1)} ${t.to} ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
+          </div>
+        )}
+        {activeFilter === "reviews" && (
+          <div className="cc-filter-panel">
+            <RangeStrip icon={<MessageSquare size={13} aria-hidden />} tone="reviews" format={(v) => Math.round(v).toLocaleString("en-US")} title={t.reviews} label="review count" summary={`${reviewRange[0].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")} ${t.to} ${reviewRange[1].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
+          </div>
+        )}
       </div>
 
       <div className="cc-views" role="group" aria-label={t.switchView}>

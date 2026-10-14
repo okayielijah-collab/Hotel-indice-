@@ -4978,3 +4978,127 @@
   opacity: .45;
   cursor: not-allowed;
 }
+
+
+
+/* Compact hotel filter controls */
+.cc-strip {
+  display: block;
+  padding: 10px 22px;
+}
+
+.cc-filter-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.cc-filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 10px;
+  background: var(--cc-panel);
+  color: var(--cc-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+
+.cc-filter-tab > svg {
+  flex: 0 0 auto;
+  color: var(--cc-dim);
+}
+
+.cc-filter-tab > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cc-filter-tab > b {
+  margin-left: auto;
+  color: var(--cc-dim);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cc-filter-tab:hover,
+.cc-filter-tab[aria-expanded="true"] {
+  border-color: var(--cc-signal);
+  background: var(--cc-signal-soft);
+}
+
+.cc-filter-tab[aria-expanded="true"] > svg,
+.cc-filter-tab[aria-expanded="true"] > b {
+  color: var(--cc-signal);
+}
+
+.cc-filter-tab:focus-visible {
+  outline: 2px solid var(--cc-signal);
+  outline-offset: 3px;
+}
+
+.cc-filter-panel {
+  margin-top: 12px;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--cc-line);
+  border-radius: 12px;
+  background: var(--cc-panel);
+}
+
+.cc-filter-panel .cc-rng-title {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 760px) {
+  .cc-root[data-strip="open"] .cc-strip {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0;
+    max-height: 440px;
+    padding: 8px 12px;
+    overflow-y: auto;
+  }
+
+  .cc-filter-tabs {
+    gap: 6px;
+  }
+
+  .cc-filter-tab {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px 5px;
+    text-align: center;
+  }
+
+  .cc-filter-tab > span {
+    flex: 1 1 100%;
+    text-align: center;
+  }
+
+  .cc-filter-tab > b {
+    margin-left: 0;
+    font-size: 10px;
+  }
+
+  .cc-filter-panel {
+    margin-top: 10px;
+    padding: 10px 8px 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-filter-tab {
+    transition: none;
+  }
+}
