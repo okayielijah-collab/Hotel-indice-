@@ -4,12 +4,59 @@ import { AccountPanel, useAccount } from "./account";
 import { AlertsTab, WatchPrice, useAlerts } from "./alerts";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type CSSProperties, type ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, Banknote, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Globe2, Heart, Map as MapIcon, MapPin, MessageSquare, Moon, Search, SlidersHorizontal, Sparkles, Star, Sun, Trash2, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Banknote, Bookmark, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Globe2, Languages, Heart, Map as MapIcon, MapPin, MessageSquare, Moon, Search, SlidersHorizontal, Sparkles, Star, Sun, Trash2, X, Mic, Square } from "lucide-react";
 import { MapView } from "@/components/map-view";
 import { amenityLabels, cities, vibeLabels, type Hotel, type PriceTier } from "@/lib/hotels";
 import { popularDestinations } from "@/lib/destinations";
 import { interpretTrip } from "@/lib/matching";
 import type { Match } from "@/lib/matching";
+import { getTranslations, type SiteLanguage } from "@/lib/i18n";
+
+const amenityTranslations: Record<SiteLanguage, Record<string, string>> = {
+  en: {
+    fast_wifi: "Fast wifi", breakfast: "Breakfast", pool: "Pool", spa: "Spa",
+    gym: "Gym", workspace: "Workspace", family_rooms: "Family rooms",
+    parking: "Parking", airport_transfer: "Airport transfer",
+    room_service: "Room service", laundry: "Laundry", yoga: "Yoga",
+  },
+  es: {
+    fast_wifi: "Wi-Fi rápido", breakfast: "Desayuno", pool: "Piscina", spa: "Spa",
+    gym: "Gimnasio", workspace: "Espacio de trabajo", family_rooms: "Habitaciones familiares",
+    parking: "Aparcamiento", airport_transfer: "Traslado al aeropuerto",
+    room_service: "Servicio de habitaciones", laundry: "Lavandería", yoga: "Yoga",
+  },
+  fr: {
+    fast_wifi: "Wi-Fi rapide", breakfast: "Petit-déjeuner", pool: "Piscine", spa: "Spa",
+    gym: "Salle de sport", workspace: "Espace de travail", family_rooms: "Chambres familiales",
+    parking: "Parking", airport_transfer: "Transfert aéroport",
+    room_service: "Service en chambre", laundry: "Blanchisserie", yoga: "Yoga",
+  },
+};
+
+const vibeTranslations: Record<SiteLanguage, Record<string, string>> = {
+  en: {},
+  es: {
+    romantic: "Romántico", boutique: "Boutique", design_led: "Diseño",
+    remote_work: "Ideal para trabajar", cultural: "Cultura", nightlife: "Vida nocturna",
+    solo: "Viajar solo", family_friendly: "Ideal para familias", business: "Negocios",
+    quiet: "Tranquilo", wellness: "Bienestar", beach: "Playa",
+  },
+  fr: {
+    romantic: "Romantique", boutique: "Boutique", design_led: "Design",
+    remote_work: "Adapté au télétravail", cultural: "Culture", nightlife: "Vie nocturne",
+    solo: "Voyage solo", family_friendly: "Adapté aux familles", business: "Affaires",
+    quiet: "Calme", wellness: "Bien-être", beach: "Plage",
+  },
+};
+
+function localizedAmenity(key: string, language: SiteLanguage): string {
+  return amenityTranslations[language][key] ?? amenityLabels[key] ?? key.replaceAll("_", " ");
+}
+
+function localizedVibe(key: string, language: SiteLanguage): string {
+  return vibeTranslations[language][key] ?? vibeLabels[key] ?? key;
+}
+
 
 type Props = {
   initialMatches: Match[];
@@ -31,6 +78,24 @@ type SortKey = "match" | "price_asc" | "price_desc" | "rating";
 type Range = [number, number];
 type DetailTab = "ratings" | "info" | "photos" | "pros" | "amenities" | "match";
 
+const localizedExamples: Record<SiteLanguage, string[]> = {
+  en: [
+    "A romantic weekend in Paris with a spa",
+    "A work trip to Lagos with fast wifi",
+    "A quiet Bali escape with a pool under $180",
+  ],
+  es: [
+    "Un fin de semana romántico en París con spa",
+    "Un viaje de trabajo a Lagos con wifi rápido",
+    "Una escapada tranquila a Bali con piscina por menos de 180 $",
+  ],
+  fr: [
+    "Un week-end romantique à Paris avec spa",
+    "Un voyage professionnel à Lagos avec un wifi rapide",
+    "Une escapade paisible à Bali avec piscine à moins de 180 $",
+  ],
+};
+
 const examples = [
   "A romantic weekend in Paris with a spa",
   "A work trip to Lagos with fast wifi",
@@ -41,6 +106,33 @@ const SITE_LINKS = { about: "/about", privacy: "/privacy", terms: "/terms" };
 const CONTACT_EMAIL = "";
 // Optional: paste a good photo link for a city and the tile uses it. Example: Lisbon: "https://...".
 const TILE_PHOTOS: Record<string, string> = {};
+const localizedPopularTripTitles: Record<SiteLanguage, Record<string, string>> = {
+  en: {
+    Paris: "A romantic weekend in Paris",
+    Lagos: "A work trip to Lagos",
+    Bali: "A quiet Bali escape",
+    Tokyo: "A stylish stay in Tokyo",
+    London: "A city break in London",
+    "New York": "A weekend in New York",
+  },
+  es: {
+    Paris: "Un fin de semana romántico en París",
+    Lagos: "Un viaje de trabajo a Lagos",
+    Bali: "Una escapada tranquila a Bali",
+    Tokyo: "Una estancia con estilo en Tokio",
+    London: "Una escapada urbana a Londres",
+    "New York": "Un fin de semana en Nueva York",
+  },
+  fr: {
+    Paris: "Un week-end romantique à Paris",
+    Lagos: "Un voyage professionnel à Lagos",
+    Bali: "Une escapade paisible à Bali",
+    Tokyo: "Un séjour élégant à Tokyo",
+    London: "Une escapade citadine à Londres",
+    "New York": "Un week-end à New York",
+  },
+};
+
 const POPULAR_TRIPS = [
   { city: "Paris", title: "A romantic weekend in Paris", query: "A romantic weekend in Paris with a spa" },
   { city: "Lagos", title: "A work trip to Lagos", query: "A work trip to Lagos with fast wifi" },
@@ -207,12 +299,27 @@ function tripKey(trip: TripForm): string {
 function tripTitle(trip: TripForm): string {
   return trip.destination.trim() || "Anywhere";
 }
-function tripSummary(trip: TripForm): string {
+function tripSummary(trip: TripForm, language: SiteLanguage = "en"): string {
+  const t = getTranslations(language);
+  const locale = language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-GB";
   const parts: string[] = [];
-  if (trip.checkIn && trip.checkOut) parts.push(`${dayLabel(trip.checkIn)} - ${dayLabel(trip.checkOut)}`);
-  parts.push(`${trip.adults} adult${trip.adults === 1 ? "" : "s"}${trip.children ? `, ${trip.children} child${trip.children === 1 ? "" : "ren"}` : ""}`);
+  if (trip.checkIn && trip.checkOut) {
+    parts.push(`${dayLabel(trip.checkIn, language)} - ${dayLabel(trip.checkOut, language)}`);
+  }
+
+  const adultsLabel = trip.adults === 1 ? t.adult : t.adults;
+  const childrenLabel = trip.children === 1 ? t.child : t.children;
+  parts.push(`${trip.adults} ${adultsLabel}${trip.children ? `, ${trip.children} ${childrenLabel}` : ""}`);
+
   const filters = (trip.budget !== "Any" ? 1 : 0) + (trip.vibe ? 1 : 0) + trip.amenities.length;
-  if (filters) parts.push(`${filters} filter${filters === 1 ? "" : "s"}`);
+  if (filters) {
+    const filterLabel = language === "es"
+      ? (filters === 1 ? "filtro" : "filtros")
+      : language === "fr"
+        ? (filters === 1 ? "filtre" : "filtres")
+        : (filters === 1 ? "filter" : "filters");
+    parts.push(`${filters.toLocaleString(locale)} ${filterLabel}`);
+  }
   return parts.join(" · ");
 }
 
@@ -225,13 +332,14 @@ function fromISO(value: string): Date | null {
   const [year, month, day] = value.split("-").map(Number);
   return year && month && day ? new Date(year, month - 1, day) : null;
 }
-function dayLabel(value: string): string {
+function dayLabel(value: string, language: SiteLanguage = "en"): string {
   const date = fromISO(value);
-  return date ? date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "";
+  return date ? date.toLocaleDateString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-GB", { weekday: "short", day: "numeric", month: "short" }) : "";
 }
 
 /** Two-month range calendar (check in, then check out), in the style of the booking sites. */
-function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone }: { checkIn: string; checkOut: string; onPick: (checkIn: string, checkOut: string) => void; onClear: () => void; onDone: () => void }) {
+function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone, language }: { checkIn: string; checkOut: string; onPick: (checkIn: string, checkOut: string) => void; onClear: () => void; onDone: () => void; language: SiteLanguage }) {
+  const t = getTranslations(language);
   const todayISO = toISO(new Date());
   const [first, setFirst] = useState(() => { const base = fromISO(checkIn) ?? new Date(); return new Date(base.getFullYear(), base.getMonth(), 1); });
   const [hover, setHover] = useState("");
@@ -253,17 +361,17 @@ function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone }: { checkIn
   });
 
   return (
-    <div className="ccb-cal" role="dialog" aria-label="Choose dates">
+    <div className="ccb-cal" role="dialog" aria-label={t.dates}>
       <div className="ccb-cal-months">
         {months.map((month, index) => (
           <div className="ccb-month" key={month.start.toISOString()} data-second={index === 1}>
             <div className="ccb-month-head">
-              {index === 0 ? <button type="button" className="ccb-nav" aria-label="Previous month" disabled={first <= new Date(new Date().getFullYear(), new Date().getMonth(), 1)} onClick={() => setFirst(new Date(first.getFullYear(), first.getMonth() - 1, 1))}><ChevronLeft size={18} aria-hidden /></button> : <span className="ccb-nav-spacer" />}
-              <strong>{month.start.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</strong>
-              {index === 1 ? <button type="button" className="ccb-nav" aria-label="Next month" onClick={() => setFirst(new Date(first.getFullYear(), first.getMonth() + 1, 1))}><ChevronRight size={18} aria-hidden /></button> : <span className="ccb-nav-spacer" />}
+              {index === 0 ? <button type="button" className="ccb-nav" aria-label={language === "es" ? "Mes anterior" : language === "fr" ? "Mois précédent" : "Previous month"} disabled={first <= new Date(new Date().getFullYear(), new Date().getMonth(), 1)} onClick={() => setFirst(new Date(first.getFullYear(), first.getMonth() - 1, 1))}><ChevronLeft size={18} aria-hidden /></button> : <span className="ccb-nav-spacer" />}
+              <strong>{month.start.toLocaleDateString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-GB", { month: "long", year: "numeric" })}</strong>
+              {index === 1 ? <button type="button" className="ccb-nav" aria-label={language === "es" ? "Mes siguiente" : language === "fr" ? "Mois suivant" : "Next month"} onClick={() => setFirst(new Date(first.getFullYear(), first.getMonth() + 1, 1))}><ChevronRight size={18} aria-hidden /></button> : <span className="ccb-nav-spacer" />}
             </div>
             <div className="ccb-grid">
-              {WEEKDAYS.map((name) => <span className="ccb-wd" key={name}>{name}</span>)}
+              {(language === "es" ? ["lu", "ma", "mi", "ju", "vi", "sá", "do"] : language === "fr" ? ["lu", "ma", "me", "je", "ve", "sa", "di"] : WEEKDAYS).map((name) => <span className="ccb-wd" key={name}>{name}</span>)}
               {Array.from({ length: month.blanks }, (_, i) => <span key={`b-${i}`} />)}
               {month.days.map((iso) => {
                 const past = iso < todayISO;
@@ -272,7 +380,7 @@ function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone }: { checkIn
                 const inRange = Boolean(checkIn && rangeEnd && iso > checkIn && iso < rangeEnd);
                 return (
                   <button key={iso} type="button" disabled={past} className="ccb-day" data-start={isStart} data-end={isEnd} data-range={inRange || (isStart && Boolean(rangeEnd)) || (iso === rangeEnd && !isEnd)} data-today={iso === todayISO}
-                    aria-label={dayLabel(iso)} aria-pressed={isStart || isEnd} onMouseEnter={() => setHover(iso)} onClick={() => pick(iso)}>
+                    aria-label={dayLabel(iso, language)} aria-pressed={isStart || isEnd} onMouseEnter={() => setHover(iso)} onClick={() => pick(iso)}>
                     {Number(iso.slice(8))}
                   </button>
                 );
@@ -282,10 +390,10 @@ function RangeCalendar({ checkIn, checkOut, onPick, onClear, onDone }: { checkIn
         ))}
       </div>
       <div className="ccb-cal-foot">
-        <span>{checkIn ? `${dayLabel(checkIn)}${checkOut ? ` to ${dayLabel(checkOut)}` : ". Choose check out"}` : "Choose check in, then check out"}</span>
+        <span>{checkIn ? `${dayLabel(checkIn, language)}${checkOut ? ` ${t.to} ${dayLabel(checkOut, language)}` : t.chooseCheckOut}` : t.chooseCheckIn}</span>
         <div>
-          <button type="button" className="ccb-link" onClick={onClear}>Clear dates</button>
-          <button type="button" className="ccb-done" onClick={onDone}>Done</button>
+          <button type="button" className="ccb-link" onClick={onClear}>{t.clearDates}</button>
+          <button type="button" className="ccb-done" onClick={onDone}>{t.done}</button>
         </div>
       </div>
     </div>
@@ -306,11 +414,12 @@ function Stepper({ label, value, min, max, onChange }: { label: string; value: n
 }
 
 /** Header search bar from the committed version: destination, dates, guests and a filters panel. */
-function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTrip: (trip: TripForm) => void; onSubmit: () => void; busy: boolean }) {
+function HeaderSearch({ trip, setTrip, onSubmit, busy, language }: { trip: TripForm; setTrip: (trip: TripForm) => void; onSubmit: () => void; busy: boolean; language: SiteLanguage }) {
+  const t = getTranslations(language);
   const id = useId();
   const [open, setOpen] = useState<"dates" | "guests" | "more" | null>(null);
   const update = (changes: Partial<TripForm>) => setTrip({ ...trip, ...changes });
-  const guestText = `${trip.adults} adult${trip.adults === 1 ? "" : "s"}${trip.children ? ` and ${trip.children} ${trip.children === 1 ? "child" : "children"}` : ""}`;
+  const guestText = `${trip.adults} ${trip.adults === 1 ? t.adult : t.adults}${trip.children ? ` ${language === "fr" ? "et" : language === "es" ? "y" : "and"} ${trip.children} ${trip.children === 1 ? t.child : t.children}` : ""}`;
   const moreCount = (trip.budget !== "Any" ? 1 : 0) + (trip.vibe ? 1 : 0) + trip.amenities.length;
 
   useEffect(() => {
@@ -324,8 +433,8 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
   return (
     <form className="ccb" onSubmit={(event) => { event.preventDefault(); setOpen(null); onSubmit(); }}>
       <div className="ccb-field ccb-dest">
-        <label className="ccb-label" htmlFor={`${id}-dest`}>Where to</label>
-        <input spellCheck={false} id={`${id}-dest`} type="text" className="ccb-text" list={`${id}-countries`} value={trip.destination} placeholder="Search country or city" autoComplete="off" maxLength={100}
+        <label className="ccb-label" htmlFor={`${id}-dest`}>{t.whereTo}</label>
+        <input spellCheck={false} id={`${id}-dest`} type="text" className="ccb-text" list={`${id}-countries`} value={trip.destination} placeholder={t.destinationPlaceholder} autoComplete="off" maxLength={100}
           onChange={(event) => update({ destination: event.target.value })}
           onBlur={(event) => {
             const typed = event.target.value.trim();
@@ -345,11 +454,11 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
 
       <div className={`ccb-field ccb-pop ccb-dates${open === "dates" ? " is-open" : ""}`}>
         <button type="button" className="ccb-trigger" aria-expanded={open === "dates"} onClick={() => setOpen(open === "dates" ? null : "dates")}>
-          <span className="ccb-label">Dates</span>
-          <span className="ccb-value ccb-value-row"><CalendarDays size={15} aria-hidden />{trip.checkIn ? `${dayLabel(trip.checkIn)} - ${trip.checkOut ? dayLabel(trip.checkOut) : "check out"}` : <em>Add dates</em>}</span>
+          <span className="ccb-label">{t.dates}</span>
+          <span className="ccb-value ccb-value-row"><CalendarDays size={15} aria-hidden />{trip.checkIn ? `${dayLabel(trip.checkIn, language)} - ${trip.checkOut ? dayLabel(trip.checkOut, language) : t.checkOut}` : <em>{t.addDates}</em>}</span>
         </button>
         {open === "dates" && (
-          <RangeCalendar checkIn={trip.checkIn} checkOut={trip.checkOut}
+          <RangeCalendar language={language} checkIn={trip.checkIn} checkOut={trip.checkOut}
             onPick={(checkIn, checkOut) => update({ checkIn, checkOut })}
             onClear={() => update({ checkIn: "", checkOut: "" })}
             onDone={() => setOpen(null)} />
@@ -358,14 +467,14 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
 
       <div className={`ccb-field ccb-pop ccb-guests${open === "guests" ? " is-open" : ""}`}>
         <button type="button" className="ccb-trigger" aria-expanded={open === "guests"} onClick={() => setOpen(open === "guests" ? null : "guests")}>
-          <span className="ccb-label">Guests</span>
+          <span className="ccb-label">{t.guests}</span>
           <span className="ccb-value">{guestText}</span>
         </button>
         {open === "guests" && (
           <div className="ccb-panel">
-            <Stepper label="Adults" value={trip.adults} min={1} max={10} onChange={(value) => update({ adults: value })} />
-            <Stepper label="Children" value={trip.children} min={0} max={6} onChange={(value) => update({ children: value })} />
-            <button type="button" className="ccb-done" onClick={() => setOpen(null)}>Done</button>
+            <Stepper label={language === "es" ? "Adultos" : language === "fr" ? "Adultes" : "Adults"} value={trip.adults} min={1} max={10} onChange={(value) => update({ adults: value })} />
+            <Stepper label={language === "es" ? "Niños" : language === "fr" ? "Enfants" : "Children"} value={trip.children} min={0} max={6} onChange={(value) => update({ children: value })} />
+            <button type="button" className="ccb-done" onClick={() => setOpen(null)}>{t.done}</button>
           </div>
         )}
       </div>
@@ -373,7 +482,7 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
       <div className={`ccb-field ccb-pop ccb-more${open === "more" ? " is-open" : ""}`}>
         <button type="button" className="ccb-trigger ccb-trigger-row" aria-expanded={open === "more"} onClick={() => setOpen(open === "more" ? null : "more")}>
           <SlidersHorizontal size={16} aria-hidden />
-          <span className="ccb-value">More filters</span>
+          <span className="ccb-value">{t.moreFilters}</span>
           {moreCount > 0 ? <span className="ccb-count">{moreCount}</span> : null}
           <ChevronDown size={14} aria-hidden />
         </button>
@@ -382,50 +491,55 @@ function HeaderSearch({ trip, setTrip, onSubmit, busy }: { trip: TripForm; setTr
             <div className="ccb-mobile-filter-head">
               <button type="button" className="ccb-mobile-filter-back" onClick={() => setOpen(null)}>
                 <ChevronLeft size={18} aria-hidden />
-                <span>Filters</span>
+                <span>{t.filters}</span>
               </button>
               <button
                 type="button"
                 className="ccb-mobile-filter-reset"
                 onClick={() => update({ budget: "Any", vibe: "", amenities: [] })}
               >
-                Reset
+                {t.reset}
               </button>
             </div>
 
             <div className="ccb-pfield">
-              <label className="ccb-label" htmlFor={`${id}-budget`}>Budget</label>
+              <label className="ccb-label" htmlFor={`${id}-budget`}>{t.budget}</label>
               <select id={`${id}-budget`} className="ccb-select" value={trip.budget} onChange={(event) => update({ budget: event.target.value as TripForm["budget"] })}>
-                {["Any", "Budget", "Mid-range", "Luxury"].map((tier) => <option key={tier} value={tier}>{tier}</option>)}
+                {[
+                  ["Any", t.any],
+                  ["Budget", language === "es" ? "Económico" : language === "fr" ? "Économique" : "Budget"],
+                  ["Mid-range", t.midRange],
+                  ["Luxury", t.luxury],
+                ].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </div>
             <div className="ccb-pfield">
-              <label className="ccb-label" htmlFor={`${id}-vibe`}>Stay style</label>
+              <label className="ccb-label" htmlFor={`${id}-vibe`}>{t.stayStyle}</label>
               <select id={`${id}-vibe`} className="ccb-select" value={trip.vibe} onChange={(event) => update({ vibe: event.target.value })}>
-                <option value="">Any style</option>
-                {styleChoices.map((v) => <option key={v} value={v}>{vibeLabels[v] ?? v}</option>)}
+                <option value="">{t.anyStyle}</option>
+                {styleChoices.map((v) => <option key={v} value={v}>{localizedVibe(v, language)}</option>)}
               </select>
             </div>
             <div className="ccb-pfield ccb-span">
-              <span className="ccb-label">Must haves</span>
+              <span className="ccb-label">{t.mustHaves}</span>
               <div className="ccb-checks">
                 {amenityChoices.map((amenity) => (
                   <label className="ccb-check" key={amenity}>
                     <input type="checkbox" checked={trip.amenities.includes(amenity)} onChange={() => update({ amenities: toggle(trip.amenities, amenity) })} />
-                    <span>{amenityLabels[amenity] ?? amenity.replaceAll("_", " ")}</span>
+                    <span>{localizedAmenity(amenity, language)}</span>
                   </label>
                 ))}
               </div>
             </div>
             <button type="button" className="ccb-done ccb-span" onClick={() => setOpen(null)}>
-              <span className="ccb-desktop-done">Done</span>
-              <span className="ccb-mobile-done">Show stays</span>
+              <span className="ccb-desktop-done">{t.done}</span>
+              <span className="ccb-mobile-done">{t.showStays}</span>
             </button>
           </div>
         )}
       </div>
 
-      <button type="submit" className="ccb-go" disabled={busy}><Search size={16} aria-hidden /><span>{busy ? "Searching..." : "Find your stay"}</span></button>
+      <button type="submit" className="ccb-go" disabled={busy}><Search size={16} aria-hidden /><span>{busy ? t.searching : t.findYourStay}</span></button>
     </form>
   );
 }
@@ -551,19 +665,19 @@ type CatchInfo = { kind: "caution" | "unverified" | "note"; text: string; label:
 
 /** Splits "what to know" into a real drawback, an unverified wish, or a plain note. */
 function catchInfo(match: Match): CatchInfo | null {
-  const reality = (match.evidence ?? []).find((item) => item.type !== "match");
+  const reality = (match.evidence ?? []).find((item) => item.type === "tradeoff");
   if (reality) {
     if ((reality.detail ?? "").includes("does not provide enough evidence")) {
       return { kind: "unverified", text: "", label: reality.label };
     }
     return { kind: "caution", text: reality.detail ? `${reality.label}: ${reality.detail}` : reality.label, label: reality.label };
   }
-  const text = catchLine(match);
-  return text ? { kind: "note", text, label: "" } : null;
+  // Informational hotel facts belong in the details modal, not on result cards.
+  return null;
 }
 
 function catchLine(match: Match): string {
-  const reality = (match.evidence ?? []).find((item) => item.type !== "match");
+  const reality = (match.evidence ?? []).find((item) => item.type === "tradeoff");
   if (reality) return reality.detail ? `${reality.label}: ${reality.detail}` : reality.label;
   const notes = (match.things_to_know ?? "").trim();
   if (!notes) return "";
@@ -603,6 +717,10 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [entered, setEntered] = useState(false);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [heroText, setHeroText] = useState("");
+  const [voiceState, setVoiceState] = useState<"idle" | "recording" | "transcribing">("idle");
+  const [voiceError, setVoiceError] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [trip, setTrip] = useState<TripForm>(blankTrip);
   const [store, setStore] = useState<TripStore>({ trips: [], stays: [] });
@@ -617,11 +735,50 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
   const [aiUsed, setAiUsed] = useState(false);
   const [listState, setListState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [listError, setListError] = useState("");
+  const [language, setLanguage] = useState<SiteLanguage>("en");
   const [currency, setCurrency] = useState("USD");
+  const t = getTranslations(language);
+
+  const chooseLanguage = (next: SiteLanguage) => {
+    setLanguage(next);
+    try {
+      window.localStorage.setItem("hotel-indice-language", next);
+    } catch { /* keep the choice for this session if storage is unavailable */ }
+  };
   const formatPrice = useCallback(
     (usd: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(usd * (currencyRates[currency] ?? 1))),
     [currency],
   );
+
+  useEffect(() => {
+    let next: SiteLanguage = "en";
+
+    try {
+      const savedLanguage = window.localStorage.getItem("hotel-indice-language");
+      if (savedLanguage === "en" || savedLanguage === "es" || savedLanguage === "fr") {
+        next = savedLanguage;
+      } else {
+        const browserLanguages = window.navigator.languages?.length
+          ? window.navigator.languages
+          : [window.navigator.language];
+
+        const preferred = browserLanguages
+          .map((value) => value.toLowerCase().split("-")[0])
+          .find((value) => value === "es" || value === "fr" || value === "en");
+
+        if (preferred === "es" || preferred === "fr" || preferred === "en") {
+          next = preferred;
+        }
+      }
+    } catch { /* use English when browser preferences are unavailable */ }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLanguage(next);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     try {
@@ -882,7 +1039,76 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     if (ok) { setCurrentTripId(null); setLastSearch({ kind: "text", query: text, destination }); }
   }
 
-  async function ask(text: string) {
+  async function startVoiceRecording(setTranscript: (text: string) => void = setHeroText) {
+  setVoiceError("");
+
+  try {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      throw new Error("Your browser doesn't support audio recording.");
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"]
+      .find((type) => MediaRecorder.isTypeSupported(type));
+
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
+
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksRef.current.push(event.data);
+    };
+
+    recorder.onerror = () => {
+      stream.getTracks().forEach((track) => track.stop());
+      setVoiceState("idle");
+      setVoiceError("Recording failed. Please try again.");
+    };
+
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      setVoiceState("transcribing");
+
+      try {
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        if (!blob.size) throw new Error("No audio was captured. Please try again.");
+
+        const extension = blob.type.includes("mp4") ? "m4a" : "webm";
+        const form = new FormData();
+        form.append("audio", blob, `hotel-indice-recording.${extension}`);
+
+        const response = await fetch("/api/voice", { method: "POST", body: form });
+        const data = await response.json() as { text?: string; error?: string };
+
+        if (!response.ok || !data.text) {
+          throw new Error(data.error || "Couldn't transcribe that recording.");
+        }
+
+        setTranscript(data.text);
+      } catch (error) {
+        setVoiceError(error instanceof Error ? error.message : "Voice search failed.");
+      } finally {
+        setVoiceState("idle");
+        mediaRecorderRef.current = null;
+      }
+    };
+
+    recorder.start();
+    setVoiceState("recording");
+  } catch (error) {
+    setVoiceState("idle");
+    setVoiceError(
+      error instanceof Error ? error.message : "Couldn't access your microphone.",
+    );
+  }
+}
+
+async function ask(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
     await searchText(trimmed, trip.destination);
@@ -934,55 +1160,90 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
     <div className="cc-root" data-theme={theme} data-view={view} data-strip={stripOpen ? "open" : "closed"} data-entered={entered ? "true" : "false"}>
       <header className="cc-head">
         <div className="cc-brand">
-          <button type="button" className="cc-brand-mark cc-home-mark" onClick={() => setEntered(false)} aria-label="Home" title="Home">
+          <a href="/" className="cc-brand-mark cc-home-mark" onClick={(event) => { if (window.location.pathname === "/") { event.preventDefault(); setEntered(false); } }} aria-label={t.homeLabel} title={t.homeTitle}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 11h3v-3h3V5h4v3h3v3h3v9h-6v-6h-4v6H4z" fill="currentColor"/>
               <path d="M10 14h4v6h-4z" fill="var(--cc-signal)"/>
             </svg>
-          </button>
-          <span>Hotel <em>Indice</em></span>
+          </a>
+          <a href="/" className="cc-brand-name" onClick={(event) => { if (window.location.pathname === "/") { event.preventDefault(); setEntered(false); } }}>Hotel <em>Indice</em></a>
         </div>
         <div className="cc-head-search" data-open={plannerOpen ? "true" : "false"}>
           <button type="button" className="cc-plan-toggle" aria-expanded={plannerOpen} onClick={() => setPlannerOpen((open) => !open)}>
-            <Search size={16} aria-hidden /><b>{trip.destination || "Anywhere"}</b><span>{trip.adults || 2} adults</span><ChevronDown size={16} aria-hidden />
+            <Search size={16} aria-hidden /><b>{trip.destination || t.anywhere}</b><span>{trip.adults || 2} {trip.adults === 1 ? t.adult : t.adults}</span><ChevronDown size={16} aria-hidden />
           </button>
-          <HeaderSearch trip={trip} setTrip={setTrip} onSubmit={searchTrip} busy={asking} />
+          <HeaderSearch trip={trip} setTrip={setTrip} onSubmit={searchTrip} busy={asking} language={language} />
         </div>
         <div className="cc-head-end" aria-live="polite">
-          <button type="button" className="cc-theme" onClick={switchTheme} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
+          <button type="button" className="cc-theme" onClick={switchTheme} aria-label={theme === "dark" ? t.lightTheme : t.darkTheme}>
             {theme === "dark" ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
           </button>
+          <label className="cc-language">
+            <Languages size={16} aria-hidden />
+            <select
+              value={language}
+              onChange={(event) => chooseLanguage(event.target.value as SiteLanguage)}
+              aria-label={t.language}
+              title={t.language}
+            >
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+            </select>
+          </label>
           <label className="cc-currency">
             <Globe2 size={16} aria-hidden />
-            <select value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label="Currency">
+            <select value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label={t.currencyLabel}>
               {Object.keys(currencyRates).map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </label>
           <button type="button" className="cc-fbtn cc-mobile-only" aria-pressed={stripOpen} onClick={() => setStripOpen((v) => !v)}>
             <SlidersHorizontal size={14} aria-hidden /> Ranges
           </button>
-          <button type="button" className="cc-listbtn" onClick={openListing}>List your hotel</button>
-          <button type="button" className="cc-tripsbtn" aria-haspopup="dialog" onClick={() => setTripsOpen(true)}><Bookmark size={16} aria-hidden /> Trips{tripCount > 0 ? <span className="cc-tripcount">{tripCount}</span> : null}</button>
-          <button type="button" className="cc-askhead" onClick={() => setAskOpen(true)}><Sparkles size={16} aria-hidden /> Ask Indice</button>
+          <button type="button" className="cc-listbtn" onClick={openListing}>{t.listYourHotel}</button>
+          <button type="button" className="cc-tripsbtn" aria-haspopup="dialog" onClick={() => setTripsOpen(true)}><Bookmark size={16} aria-hidden /> {t.trips}{tripCount > 0 ? <span className="cc-tripcount">{tripCount}</span> : null}</button>
+          <button type="button" className="cc-askhead" onClick={() => setAskOpen(true)}><Sparkles size={16} aria-hidden /> {t.askIndice}</button>
         </div>
       </header>
 
       {!entered && (
         <section className="cc-hero">
           <div className="cc-hero-inner">
-            <h1>Find the stay that actually fits your trip.</h1>
-            <p>Tell us your vibe. We match you to a few stays and say why.</p>
+            <h1>{t.heroTitle}</h1>
+            <p>{t.heroSubtitle}</p>
             <form className="cc-hero-form" onSubmit={(e) => { e.preventDefault(); if (heroText.trim()) void ask(heroText); }}>
               <Search size={18} aria-hidden />
-              <input value={heroText} onChange={(e) => setHeroText(e.target.value)} placeholder="A quiet stay in Lisbon with a pool under $150" aria-label="Describe your trip" />
-              <button type="submit" disabled={asking || !heroText.trim()}>{asking ? "Finding" : "Find stays"}</button>
+              <input value={heroText} onChange={(e) => setHeroText(e.target.value)} placeholder={t.describeTripPlaceholder} aria-label={t.describeTrip} />
+              <button
+                type="button"
+                className="cc-voice-btn"
+                aria-label={voiceState === "recording" ? t.stopRecording : t.recordTrip}
+                title={voiceState === "recording" ? t.stopRecording : t.speakTrip}
+                disabled={voiceState === "transcribing" || asking}
+                onClick={() => {
+                  if (voiceState === "recording") mediaRecorderRef.current?.stop();
+                  else if (voiceState === "idle") void startVoiceRecording();
+                }}
+              >
+                {voiceState === "recording" ? <Square size={17} aria-hidden /> : <Mic size={18} aria-hidden />}
+              </button>
+              <button type="submit" disabled={asking || voiceState !== "idle" || !heroText.trim()}>
+                {asking ? t.finding : t.findStays}
+              </button>
             </form>
+            {voiceState !== "idle" && (
+              <p className="cc-voice-status" role="status">
+                {voiceState === "recording" ? t.recordingStatus : t.translatingRecording}
+              </p>
+            )}
+            {voiceError && <p className="cc-voice-error" role="alert">{voiceError}</p>}
+            {heroText.trim() && <p className="cc-voice-hint">{t.reviewDescription}</p>}
             <div className="cc-hero-chips">
-              {examples.slice(0, 3).map((ex) => <button type="button" key={ex} onClick={() => { setHeroText(ex); void ask(ex); }}>{ex}</button>)}
+              {examples.slice(0, 3).map((ex, index) => <button type="button" key={ex} onClick={() => { setHeroText(ex); void ask(ex); }}>{localizedExamples[language][index]}</button>)}
             </div>
             <div className="cc-hero-links">
-              <button type="button" className="cc-hero-browse" onClick={() => setEntered(true)}>Browse all {base.length} stays</button>
-              <button type="button" className="cc-hero-browse" onClick={() => { setEntered(true); setPlannerOpen(true); }}>Pick dates and guests</button>
+              <button type="button" className="cc-hero-browse" onClick={() => setEntered(true)}>{t.browseAllStays} ({base.length})</button>
+              <button type="button" className="cc-hero-browse" onClick={() => { setEntered(true); setPlannerOpen(true); }}>{t.pickDatesGuests}</button>
             </div>
           </div>
         </section>
@@ -990,11 +1251,11 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       {!entered && (
         <div className="cc-landing">
           <section className="cc-sec" aria-labelledby="cc-how">
-            <h2 id="cc-how">How it works</h2>
+            <h2 id="cc-how">{t.howItWorks}</h2>
             <ol className="cc-steps">
-              <li><b>1</b><h3>Describe your trip</h3><p>Say it the way you would tell a friend. Where, who is coming and what matters.</p></li>
-              <li><b>2</b><h3>We match a few stays</h3><p>Each one comes with why it fits and what to watch out for.</p></li>
-              <li><b>3</b><h3>Check the live rate</h3><p>Open our booking partner to see today's price before you decide.</p></li>
+              <li><b>1</b><h3>{t.stepDescribeTitle}</h3><p>{t.stepDescribeBody}</p></li>
+              <li><b>2</b><h3>{t.stepMatchTitle}</h3><p>{t.stepMatchBody}</p></li>
+              <li><b>3</b><h3>{t.stepRateTitle}</h3><p>{t.stepRateBody}</p></li>
             </ol>
           </section>
 
@@ -1002,25 +1263,25 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             const pool = base.filter((m) => m.hotel.review_count >= 100);
             const example = [...(pool.length ? pool : base)].sort((a, b) => b.hotel.rating - a.hotel.rating)[0]?.hotel;
             if (!example) return null;
-            const names = example.amenities.slice(0, 2).map((a) => (amenityLabels[a] || a.replaceAll("_", " ")).toLowerCase());
-            const why = names.length ? `Fits a trip that wants ${names.join(" and ")}.` : "";
+            const names = example.amenities.slice(0, 2).map((a) => localizedAmenity(a, language).toLowerCase());
+            const why = names.length ? `${t.fitsTripThatWants} ${names.join(" and ")}.` : "";
             const notes = (example.editorial_notes ?? "").trim();
             const firstSentence = (notes.match(/^.*?[.!?](\s|$)/)?.[0] ?? notes).trim();
             return (
               <section className="cc-sec" aria-labelledby="cc-ex">
-                <h2 id="cc-ex">What a stay match looks like</h2>
-                <p className="cc-sec-sub">A real stay from our catalog, with the reasons we show for every match.</p>
+                <h2 id="cc-ex">{t.exampleStayTitle}</h2>
+                <p className="cc-sec-sub">{t.exampleStaySubtitle}</p>
                 <article className="cc-ex">
                   <div className="cc-ex-photo"><HotelPhoto src={example.image_urls[0]} name={example.name} eager={false} /></div>
                   <div className="cc-ex-body">
                     <small>{example.city}, {example.country}</small>
                     <h3>{example.name}</h3>
                     <p className="cc-ex-meta">
-                      <span>★ {example.rating.toFixed(1)}{example.review_count > 0 ? ` from ${example.review_count} reviews` : ""}</span>
-                      <span>{example.estimated_price_per_night > 0 ? `about ${formatPrice(example.estimated_price_per_night)} a night` : "rate on request"}</span>
+                      <span>★ {example.rating.toFixed(1)}{example.review_count > 0 ? ` ${t.fromReviews} ${example.review_count} ${t.reviewsLabel}` : ""}</span>
+                      <span>{example.estimated_price_per_night > 0 ? `${t.about} ${formatPrice(example.estimated_price_per_night)} ${t.aNight}` : t.rateOnRequest}</span>
                     </p>
-                    {why && <><h4>Why it fits</h4><p>{why}</p></>}
-                    {firstSentence && <><h4>Good to know</h4><p>{firstSentence}</p></>}
+                    {why && <><h4>{t.whyItFits}</h4><p>{why}</p></>}
+                    {firstSentence && <><h4>{t.goodToKnow}</h4><p>{firstSentence}</p></>}
                   </div>
                 </article>
               </section>
@@ -1028,8 +1289,8 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
           })()}
 
           <section className="cc-sec" aria-labelledby="cc-pop">
-            <h2 id="cc-pop">Popular trips</h2>
-            <p className="cc-sec-sub">Tap one to see matches. Or describe your own trip above.</p>
+            <h2 id="cc-pop">{t.popularTripsTitle}</h2>
+            <p className="cc-sec-sub">{t.popularTripsSubtitle}</p>
             <div className="cc-tiles">
               {(() => {
                 // A photo is used only once on this row, so a repeated catalog photo never shows twice.
@@ -1041,7 +1302,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                   return (
                     <button type="button" key={trip.city} className="cc-tile" disabled={asking} onClick={() => { setHeroText(trip.query); void ask(trip.query); }}>
                       <span className="cc-tile-photo"><HotelPhoto src={photo} name={trip.city} eager={false} /></span>
-                      <span className="cc-tile-title">{trip.title}</span>
+                      <span className="cc-tile-title">{localizedPopularTripTitles[language][trip.city] ?? trip.title}</span>
                     </button>
                   );
                 });
@@ -1049,31 +1310,31 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             </div>
           </section>
 
-          <section className="cc-sec cc-trust" aria-label="Why people trust Hotel Indice">
-            <div><h3>Never ranked by commission</h3><p>Some links may earn us a fee. It never changes which stays we show or in what order.</p></div>
-            <div><h3>Live rates, checked by you</h3><p>You see the current rate with the booking partner before you pay.</p></div>
-            <div><h3>Honest about the downsides</h3><p>Every match tells you what to watch out for, like noise or small rooms.</p></div>
-            <div><h3>Price alerts</h3><p>Watch a stay and we email you when the price drops.</p></div>
+          <section className="cc-sec cc-trust" aria-label={t.trustLabel}>
+            <div><h3>{t.noCommissionTitle}</h3><p>{t.noCommissionBody}</p></div>
+            <div><h3>{t.liveRatesTitle}</h3><p>{t.liveRatesBody}</p></div>
+            <div><h3>{t.honestDownsidesTitle}</h3><p>{t.honestDownsidesBody}</p></div>
+            <div><h3>{t.priceAlertsTitle}</h3><p>{t.priceAlertsBody}</p></div>
           </section>
 
           <section className="cc-sec cc-own">
-            <div><h2>Own a hotel?</h2><p>Get it in front of people who are planning a trip. It takes two minutes.</p></div>
-            <button type="button" onClick={openListing}>List your hotel</button>
+            <div><h2>{t.ownHotelTitle}</h2><p>{t.ownHotelBody}</p></div>
+            <button type="button" onClick={openListing}>{t.listYourHotel}</button>
           </section>
 
           <footer className="cc-footer">
             <div className="cc-footer-top">
-              <div><strong>Hotel Indice</strong><p>Find the stay that actually fits your trip.</p></div>
+              <div><strong>Hotel Indice</strong><p>{t.footerBrowse}</p></div>
               <nav aria-label="Footer">
-                <button type="button" onClick={() => setEntered(true)}>Browse all stays</button>
-                <button type="button" onClick={openListing}>List your hotel</button>
-                <a href={SITE_LINKS.about}>About</a>
-                <a href={SITE_LINKS.privacy}>Privacy</a>
-                <a href={SITE_LINKS.terms}>Terms</a>
-                {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>}
+                <button type="button" onClick={() => setEntered(true)}>{t.browseAllStays}</button>
+                <button type="button" onClick={openListing}>{t.listYourHotel}</button>
+                <a href={SITE_LINKS.about}>{t.aboutLink}</a>
+                <a href={SITE_LINKS.privacy}>{t.privacyLink}</a>
+                <a href={SITE_LINKS.terms}>{t.termsLink}</a>
+                {CONTACT_EMAIL && <a href={`mailto:${CONTACT_EMAIL}`}>{t.contactLink}</a>}
               </nav>
             </div>
-            <p className="cc-footer-note">Some links may earn Hotel Indice a commission. This never affects how stays are matched or presented.</p>
+            <p className="cc-footer-note">{t.footerCommission}</p>
             <p className="cc-footer-note">© {new Date().getFullYear()} Hotel Indice</p>
           </footer>
         </div>
@@ -1081,51 +1342,70 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       {entered && (
         <>
       <div className="cc-strip">
-        <RangeStrip icon={<Banknote size={13} aria-hidden />} tone="price" format={(v) => formatPrice(Math.round(v / 5) * 5)} title="Price / night" label="price" summary={`${formatPrice(priceRange[0])} to ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
-        <RangeStrip icon={<Star size={13} aria-hidden />} tone="rating" format={(v) => v.toFixed(1)} title="Guest rating" label="rating" summary={`${ratingRange[0].toFixed(1)} to ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
-        <RangeStrip icon={<MessageSquare size={13} aria-hidden />} tone="reviews" format={(v) => Math.round(v).toLocaleString("en-US")} title="Reviews" label="review count" summary={`${reviewRange[0].toLocaleString("en-US")} to ${reviewRange[1].toLocaleString("en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
+        <RangeStrip icon={<Banknote size={13} aria-hidden />} tone="price" format={(v) => formatPrice(Math.round(v / 5) * 5)} title={t.pricePerNight} label="price" summary={`${formatPrice(priceRange[0])} ${t.to} ${formatPrice(priceRange[1])}`} values={priceValues} limits={priceLimits} range={priceRange} step={5} onChange={setPriceRange} />
+        <RangeStrip icon={<Star size={13} aria-hidden />} tone="rating" format={(v) => v.toFixed(1)} title={t.guestRating} label="rating" summary={`${ratingRange[0].toFixed(1)} ${t.to} ${ratingRange[1].toFixed(1)}`} values={ratingValues} limits={ratingLimits} range={ratingRange} step={0.1} onChange={setRatingRange} />
+        <RangeStrip icon={<MessageSquare size={13} aria-hidden />} tone="reviews" format={(v) => Math.round(v).toLocaleString("en-US")} title={t.reviews} label="review count" summary={`${reviewRange[0].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")} ${t.to} ${reviewRange[1].toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")}`} values={reviewValues} limits={reviewLimits} range={reviewRange} step={10} onChange={setReviewRange} />
       </div>
 
-      <div className="cc-views" role="group" aria-label="Switch view">
+      <div className="cc-views" role="group" aria-label={t.switchView}>
         <button
           type="button"
           onClick={() => setView(view === "map" ? "list" : "map")}
-          aria-label={view === "map" ? "Show hotel list" : "Show map"}
+          aria-label={view === "map" ? t.showHotelList : t.showMap}
         >
           {view === "map" ? "List" : "Map"}
         </button>
       </div>
 
       <div className="cc-body">
-        <section className="cc-list-col" aria-label="Hotels">
+        <section className="cc-list-col" aria-label={t.hotelsLabel}>
           <label className="cc-search">
             <Search size={16} aria-hidden />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && isSentence(query)) { e.preventDefault(); void ask(query); } }}
-              placeholder="Search by name or city, or describe your stay"
-              aria-label="Search stays by name or city, or describe your stay and press Enter"
+              placeholder={t.searchPlaceholder}
+              aria-label={t.searchHotelsLabel}
             />
+            <button
+              type="button"
+              className="cc-voice-btn cc-results-voice-btn"
+              aria-label={voiceState === "recording" ? t.stopRecording : t.speakSearch}
+              title={voiceState === "recording" ? t.stopRecording : t.speakSearch}
+              disabled={voiceState === "transcribing" || asking}
+              onClick={() => {
+                if (voiceState === "recording") mediaRecorderRef.current?.stop();
+                else if (voiceState === "idle") void startVoiceRecording(setQuery);
+              }}
+            >
+              {voiceState === "recording" ? <Square size={16} aria-hidden /> : <Mic size={17} aria-hidden />}
+            </button>
           </label>
+          {voiceState !== "idle" && (
+            <p className="cc-voice-status" role="status" style={{ paddingLeft: 12 }}>
+              {voiceState === "recording" ? t.recordingStatus : t.translatingRecording}
+            </p>
+          )}
+          {voiceError && <p className="cc-voice-error" role="alert" style={{ paddingLeft: 12 }}>{voiceError}</p>}
           {isSentence(query) && <p className="cc-count" style={{ paddingLeft: 12 }}>{asking ? "Finding stays that fit..." : "Press Enter to find stays that fit this"}</p>}
           {!aiMatches && store.trips.length > 0 && (
             <div className="cc-resume">
-              <span>Pick up where you left off</span>
+              <span>{t.pickUpWhereLeftOff}</span>
               <div>
                 {store.trips.slice(0, 3).map((item) => (
                   <button key={item.id} type="button" onClick={() => { setTrip(item.trip); void searchTrip(item.trip); }}>
-                    <strong>{tripTitle(item.trip)}</strong><small>{tripSummary(item.trip)}</small>
+                    <strong>{tripTitle(item.trip)}</strong><small>{tripSummary(item.trip, language)}</small>
                   </button>
                 ))}
               </div>
             </div>
           )}
           {aiMatches && (
-            <section className="cc-understanding" aria-label="Trip intelligence">
+            <section className="cc-understanding" aria-label={t.tripIntelligence}>
               <div className="cc-understanding-head">
                 <span className="cc-understanding-eyebrow">
-                  <Sparkles size={12} aria-hidden /> INDICE UNDERSTANDS
+                  <Sparkles size={12} aria-hidden /> {t.indiceUnderstands}
                 </span>
 
                 <div className="cc-understanding-actions">
@@ -1139,14 +1419,14 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                         onClick={() => toggleSaveTrip(currentTripId)}
                       >
                         <Bookmark size={12} fill={isSaved ? "currentColor" : "none"} aria-hidden />
-                        {isSaved ? "Saved" : "Save trip"}
+                        {isSaved ? t.saved : t.saveTrip}
                       </button>
                     );
                   })()}
 
                   {lastSearch && (
                     <button type="button" className="cc-savetrip" onClick={shareSearch}>
-                      {shareNote || "Share"}
+                      {shareNote || t.share}
                     </button>
                   )}
 
@@ -1161,7 +1441,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                       setCurrentTripId(null);
                       setLastSearch(null);
                     }}
-                    aria-label="Clear trip intelligence"
+                    aria-label={t.clearTripIntelligence}
                   >
                     <X size={13} />
                   </button>
@@ -1202,13 +1482,13 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
                       {interpretedTrip.requiredAmenities.map((amenity) => (
                         <span className="cc-understanding-tag strong" key={`required-amenity-${amenity}`}>
-                          {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                          {localizedAmenity(amenity, language)}
                         </span>
                       ))}
 
                       {interpretedTrip.preferredAmenities.map((amenity) => (
                         <span className="cc-understanding-tag" key={`preferred-amenity-${amenity}`}>
-                          {amenityLabels[amenity] || amenity.replace(/_/g, " ")}
+                          {localizedAmenity(amenity, language)}
                         </span>
                       ))}
                     </div>
@@ -1230,7 +1510,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                         className="cc-tray-go"
                         onClick={() => setCompareOpen(true)}
                       >
-                        Compare stays <ArrowRight size={14} aria-hidden />
+                        {t.compareStays} <ArrowRight size={14} aria-hidden />
                       </button>
                     </div>
                   )}
@@ -1241,15 +1521,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
           {!catalogError && (
             <p className="cc-count" aria-live="polite" style={{ paddingLeft: 12 }}>
-              {filtersActive ? `${shown.length} of ${pool.length} stays` : `${shown.length} ${shown.length === 1 ? "stay" : "stays"}`}
+              {filtersActive ? `${shown.length} ${t.to} ${pool.length} ${t.staysPlural}` : `${shown.length} ${shown.length === 1 ? t.staySingular : t.staysPlural}`}
             </p>
           )}
           <div className="cc-list" ref={listRef}>
             {catalogError && <div className="cc-empty" role="alert">{catalogError}</div>}
             {!catalogError && shown.length === 0 && (
               <div className="cc-empty">
-                {aiMatches && aiMatches.length === 0 ? "No stays matched this search. Try other dates, a different city or fewer filters." : "No hotels match these filters."}
-                {(filtersActive || aiMatches) && <div><button type="button" onClick={() => { resetFilters(); setAiMatches(null); setAiQuery(""); }}>{aiMatches ? "Show all stays" : "Clear filters"}</button></div>}
+                {aiMatches && aiMatches.length === 0 ? t.noMatches : t.noFilteredHotels}
+                {(filtersActive || aiMatches) && <div><button type="button" onClick={() => { resetFilters(); setAiMatches(null); setAiQuery(""); }}>{aiMatches ? t.showAllStays : t.clearFilters}</button></div>}
               </div>
             )}
             {shown.map((match, index) => {
@@ -1261,7 +1541,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                 <article key={hotel.id} className="cc-card" data-hotel={hotel.id} aria-current={selectedId === hotel.id}>
                   <button type="button" className="cc-card-media" onClick={() => openHotel(hotel.id)} aria-label={`View details of ${hotel.name}`}>
                     <HotelPhoto src={hotel.image_urls[0]} name={hotel.name} eager={index < 18} />
-                    <span className="cc-rank">{String(index + 1).padStart(2, "0")}{typeof fit_percent === "number" ? <i>{fit_percent}% match</i> : null}</span>
+                    <span className="cc-rank">{String(index + 1).padStart(2, "0")}{typeof fit_percent === "number" ? <i>{fit_percent}% {t.matchLabel}</i> : null}</span>
                     <span className="cc-score"><Star size={12} fill="currentColor" aria-hidden /> {hotel.rating.toFixed(1)}{hotel.review_count > 0 ? <small>({hotel.review_count.toLocaleString("en-US")})</small> : null}</span>
                   </button>
                   <button type="button" className="cc-heart" aria-pressed={stayIds.has(hotel.id)} aria-label={stayIds.has(hotel.id) ? `Remove ${hotel.name} from saved stays` : `Save ${hotel.name}`} onClick={() => toggleStay(match)}>
@@ -1309,12 +1589,12 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                     <div className="cc-card-foot">
                       <div className="cc-card-price">
                         {hotel.estimated_price_per_night > 0
-                          ? <><b>{formatPrice(hotel.estimated_price_per_night)}</b><small>{match.liveRate ? "live rate" : "est. / night"}</small></>
-                          : <><b>Rate not shown</b><small>check the booking site</small></>}
+                          ? <><b>{formatPrice(hotel.estimated_price_per_night)}</b><small>{match.liveRate ? t.liveRateLabel : t.estimatedNightLabel}</small></>
+                          : <><b>{t.rateNotShown}</b><small>{t.checkBookingSite}</small></>}
                       </div>
                       <div className="cc-card-actions">
-                        <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 4 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? "Comparing" : "Compare"}</button>
-                        <button type="button" className="cc-book-btn" onClick={() => openBooking(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>Check rates <ArrowUpRight size={13} aria-hidden /></button>
+                        <button type="button" className={`cc-compare${picked ? " on" : ""}`} aria-pressed={picked} disabled={compareIds.length >= 4 && !picked} onClick={() => toggleCompare(hotel.id)}>{picked ? t.comparing : t.compare}</button>
+                        <button type="button" className="cc-book-btn" onClick={() => openBooking(hotel.id)} aria-label={`Check rates and book ${hotel.name}`}>{t.checkRates} <ArrowUpRight size={13} aria-hidden /></button>
                       </div>
                     </div>
                   </div>
@@ -1323,14 +1603,14 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
             })}
             {shown.length > 0 && (
               <aside className="cc-listcta">
-                <div><strong>Own a hotel?</strong><span>Get it in front of people who are planning a trip. It takes two minutes.</span></div>
-                <button type="button" onClick={openListing}>List your hotel</button>
+                <div><strong>{t.ownHotelTitle}</strong><span>{t.ownHotelBody}</span></div>
+                <button type="button" onClick={openListing}>{t.listYourHotel}</button>
               </aside>
             )}
           </div>
 </section>
 
-        <section className="cc-map-col" aria-label="Map">
+        <section className="cc-map-col" aria-label={t.mapLabel}>
           <MapView matches={shown} selectedId={selectedId} onSelect={pickOnMap} formatPrice={formatPrice} />
           <div className="cc-vignette" aria-hidden />
           {(() => {
@@ -1344,27 +1624,27 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                   <span className="cc-map-card-text">
                     <strong>{stay.name}</strong>
                     <small>{stay.city}</small>
-                    <small>{stay.estimated_price_per_night > 0 ? `${formatPrice(stay.estimated_price_per_night)} a night` : "See rate"} and {stay.rating.toFixed(1)} stars</small>
+                    <small>{stay.estimated_price_per_night > 0 ? `${formatPrice(stay.estimated_price_per_night)} ${t.aNight}` : t.seeRate} · {stay.rating.toFixed(1)} {t.starsLabel}</small>
                   </span>
                 </button>
-                <button type="button" className="cc-map-card-go" onClick={() => openBooking(stay.id)}>Check rates</button>
+                <button type="button" className="cc-map-card-go" onClick={() => openBooking(stay.id)}>{t.checkRates}</button>
               </div>
             );
           })()}
 
           {askOpen && (
-            <div className="cc-ask" role="dialog" aria-label="Describe your trip">
-              <div className="cc-ask-head"><span>Describe your trip</span><button type="button" onClick={() => setAskOpen(false)} aria-label="Close"><X size={16} /></button></div>
+            <div className="cc-ask" role="dialog" aria-label={t.describeTrip}>
+              <div className="cc-ask-head"><span>{t.describeTrip}</span><button type="button" onClick={() => setAskOpen(false)} aria-label={t.close}><X size={16} /></button></div>
               <textarea spellCheck={false} value={askText} maxLength={600} onChange={(e) => setAskText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(askText); }}
-                placeholder="Where are you going and what matters most?" aria-label="Describe your trip" autoFocus />
+                placeholder={t.describeTripPlaceholder} aria-label={t.describeTrip} autoFocus />
               {!askText && (
                 <div className="cc-ask-examples">
                   {examples.map((ex) => <button key={ex} type="button" onClick={() => { setAskText(ex); ask(ex); }}>{ex}</button>)}
                 </div>
               )}
               {askError && <div className="cc-ask-msg err" role="alert">{askError}</div>}
-              <button type="button" className="cc-ask-go" disabled={asking || !askText.trim()} onClick={() => ask(askText)}>{asking ? "Finding stays..." : "Find stays"}</button>
+              <button type="button" className="cc-ask-go" disabled={asking || !askText.trim()} onClick={() => ask(askText)}>{asking ? t.finding : t.findStays}</button>
             </div>
           )}
         </section>
@@ -1375,22 +1655,24 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
       {detail && (() => {
         const { hotel } = detail;
         const hasMatch = Boolean(detail.why_it_matches) || detail.evidence.length > 0;
-        const tabs: [DetailTab, string][] = [["ratings", "Ratings"], ["info", "Info"], ["photos", "Photos"], ["pros", "Pros and Cons"], ["amenities", "Amenities"]];
-        if (hasMatch) tabs.push(["match", "Why it matches"]);
+        const tabs: [DetailTab, string][] = [["ratings", t.ratings], ["info", t.info], ["photos", t.photos], ["pros", t.prosAndCons], ["amenities", t.amenities]];
+        if (hasMatch) tabs.push(["match", t.whyItFits]);
         const active: DetailTab = tabs.some(([key]) => key === detailTab) ? detailTab : "ratings";
         const good = detail.evidence.filter((item) => item.type === "match");
-        const reality = detail.evidence.filter((item) => item.type !== "match");
+        const facts = detail.evidence.filter((item) => item.type === "missing");
+        const reality = detail.evidence.filter((item) => item.type === "tradeoff");
         return (
           <div className="cc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setDetailId(null); }}>
             <div className="cc-modal cc-detail-modal" role="dialog" aria-modal="true" aria-label={`${hotel.name} details`}>
               <div className="cc-dm-hero" style={{ backgroundImage: `url(${hotel.image_urls[photo] ?? hotel.image_urls[0]})` }}>
-                <button type="button" className="cc-dm-close" onClick={() => setDetailId(null)} aria-label="Close" autoFocus><X size={20} /></button>
+                <button type="button" className="cc-dm-close" onClick={() => setDetailId(null)} aria-label={t.close} autoFocus><X size={20} /></button>
                 <span className="cc-dm-badge">{hotel.rating.toFixed(1)}</span>
                 <h2>{hotel.name}</h2>
                 <div className="cc-dm-actions">
-                  <button type="button" className="cc-dm-book" onClick={() => openBooking(hotel.id)}>Book this hotel</button>
-                  <button type="button" className="cc-dm-save" aria-pressed={stayIds.has(hotel.id)} onClick={() => toggleStay(detail)}><Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden /> {stayIds.has(hotel.id) ? "Saved" : "Save stay"}</button>
+                  <button type="button" className="cc-dm-book" onClick={() => openBooking(hotel.id)}>{t.bookThisHotel}</button>
+                  <button type="button" className="cc-dm-save" aria-pressed={stayIds.has(hotel.id)} onClick={() => toggleStay(detail)}><Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden /> {stayIds.has(hotel.id) ? t.saved : t.saveStay}</button>
                   <WatchPrice
+                    language={language}
                     hotel={hotel}
                     dates={trip.checkIn && trip.checkOut ? { checkIn: trip.checkIn, checkOut: trip.checkOut } : rateDates ? { checkIn: rateDates.checkIn, checkOut: rateDates.checkOut } : null}
                     adults={trip.adults || 2}
@@ -1406,15 +1688,15 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
               </div>
               <div className="cc-tab-body" role="tabpanel">
                 {active === "ratings" && (<>
-                  <p className="cc-label">Hotel Indice rating</p>
+                  <p className="cc-label">{t.hotelIndiceRating}</p>
                   <div className="cc-ratingbar"><div style={{ width: `${Math.max(0, Math.min(100, (hotel.rating / 5) * 100))}%` }} /><span>{hotel.rating.toFixed(1)}</span></div>
-                  <p className="cc-meta">{hotel.review_count.toLocaleString("en-US")} reviews · {hotel.price_tier}</p>
+                  <p className="cc-meta">{hotel.review_count.toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")} {t.reviewsLabel} · {hotel.price_tier === "Budget" ? t.budget : hotel.price_tier === "Mid-range" ? t.midRange : hotel.price_tier === "Luxury" ? t.luxury : hotel.price_tier}</p>
 
                   {detail.tripadvisor && (
                     <div className="cc-ta-panel">
                       <div className="cc-ta-panel-head">
                         <div>
-                          <p className="cc-label">Tripadvisor Traveler Rating</p>
+                          <p className="cc-label">{t.tripadvisorTravelerRating}</p>
                           <div className="cc-ta-score">
                   {detail.tripadvisor.ratingIconUrl ? (
                     <img
@@ -1435,10 +1717,10 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                   )}
 
                   <span>
-                    {detail.tripadvisor.reviewCount.toLocaleString("en-US")} reviews
+                    {detail.tripadvisor.reviewCount.toLocaleString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US")} {t.reviewsLabel}
                   </span>
                   <small className="cc-ta-updated">
-                    Updated {new Date().toLocaleDateString("en-US", {
+                    {t.updatedLabel} {new Date().toLocaleDateString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -1466,7 +1748,7 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          View on Tripadvisor ↗
+                          {t.viewOnTripadvisor} ↗
                         </a>
                       )}
                     </div>
@@ -1474,9 +1756,9 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                 </>)}
                 {active === "info" && (<>
                   <p className="cc-meta"><MapPin size={13} aria-hidden /> {hotel.city}, {hotel.country}</p>
-                  <p className="cc-priceline"><strong>{hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "Rate not shown"}</strong> estimated / night</p>
+                  <p className="cc-priceline"><strong>{hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : t.rateOnRequest}</strong> {t.aNight}</p>
                   <p className="cc-editorial">{hotel.editorial_notes}</p>
-                  <button type="button" className="cc-maplink" onClick={() => showOnMap(hotel.id)}><MapIcon size={16} aria-hidden /> Show on map</button>
+                  <button type="button" className="cc-maplink" onClick={() => showOnMap(hotel.id)}><MapIcon size={16} aria-hidden /> {t.showOnMap}</button>
                 </>)}
                 {active === "photos" && (
                   <div className="cc-photogrid">
@@ -1489,23 +1771,34 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                   </div>
                 )}
                 {active === "pros" && (detail.why_it_matches || detail.things_to_know ? (<>
-                  <p className="cc-label">Why it fits</p>
+                  <p className="cc-label">{t.whyItFits}</p>
                   <p className="cc-pro">{detail.why_it_matches}</p>
-                  <p className="cc-label">Good to know</p>
+                  <p className="cc-label">{t.goodToKnow}</p>
                   <p className="cc-con">{detail.things_to_know}</p>
-                </>) : <p className="cc-meta">Run a search to see personalized fit notes for this stay.</p>)}
-                {active === "amenities" && <div className="cc-chips">{hotel.amenities.map((a) => <span key={a} className="cc-chip">{amenityLabels[a] ?? a}</span>)}</div>}
+                </>) : <p className="cc-meta">{t.searchForFitNotes}</p>)}
+                {active === "amenities" && <div className="cc-chips">{hotel.amenities.map((a) => <span key={a} className="cc-chip">{localizedAmenity(a, language)}</span>)}</div>}
                 {active === "match" && (<>
-                  <p className="cc-label">Why it fits</p>
-                  <p className="cc-pro">{detail.why_it_matches}</p>
+                  <p className="cc-label">{t.whyItFits}</p>
+                  <p className="cc-pro">{detail.why_it_matches || "This stay appeared in your results, but we don't have a specific fit explanation yet."}</p>
+
                   {good.length > 0 && (<>
-                    <p className="cc-label">Matches your trip</p>
+                    <p className="cc-label">{t.matchesYourTrip}</p>
                     <div className="cc-evlist">{good.map((item, i) => <div key={`g-${i}`} className="cc-ev good"><i aria-hidden>✓</i><div><strong>{item.label}</strong><p>{item.detail}</p></div></div>)}</div>
                   </>)}
+
+                  {facts.length > 0 && (<>
+                    <p className="cc-label">{t.hotelDetails}</p>
+                    <div className="cc-evlist">{facts.map((item, i) => <div key={`f-${i}`} className="cc-ev"><i aria-hidden>i</i><div><strong>{item.label}</strong><p>{item.detail}</p></div></div>)}</div>
+                  </>)}
+
                   {reality.length > 0 && (<>
                     <p className="cc-label">Reality Check</p>
                     <div className="cc-evlist">{reality.map((item, i) => <div key={`r-${i}`} className="cc-ev warn"><i aria-hidden>!</i><div><strong>{item.label}</strong><p>{item.detail}</p></div></div>)}</div>
                   </>)}
+
+                  {good.length === 0 && facts.length === 0 && reality.length === 0 && (
+                    <p className="cc-meta">We don't have enough detail to verify specific matches or trade-offs for this stay. Check the amenities and hotel information before booking.</p>
+                  )}
                 </>)}
               </div>
             </div>
@@ -1515,16 +1808,16 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
 
       {compareOpen && (
         <div className="cc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setCompareOpen(false); }}>
-          <div className="cc-modal cc-compare-modal" data-count={comparing.length} role="dialog" aria-modal="true" aria-label="Compare stays">
-            <button type="button" className="cc-modal-x" onClick={() => setCompareOpen(false)} aria-label="Close"><X size={18} /></button>
-            <h2>Compare stays</h2>
-            <p className="cc-meta">Compare the details that matter for your trip side by side.</p>
+          <div className="cc-modal cc-compare-modal" data-count={comparing.length} role="dialog" aria-modal="true" aria-label={t.compareStays}>
+            <button type="button" className="cc-modal-x" onClick={() => setCompareOpen(false)} aria-label={t.close}><X size={18} /></button>
+            <h2>{t.compareStays}</h2>
+            <p className="cc-meta">{language === "es" ? "Compara lado a lado los detalles importantes para tu viaje." : language === "fr" ? "Comparez côte à côte les détails qui comptent pour votre voyage." : "Compare the details that matter for your trip side by side."}</p>
             <div className="cc-compare-grid" data-count={comparing.length}>
               {comparing.map((match) => {
                 const { hotel } = match;
                 const isRoom = (label: string) => label.toLowerCase().startsWith("room ≥");
                 const matched = match.evidence?.filter((item) => item.type === "match") ?? [];
-                const reality = match.evidence?.filter((item) => item.type !== "match") ?? [];
+                const reality = match.evidence?.filter((item) => item.type === "tradeoff") ?? [];
                 const room = matched.find((item) => isRoom(item.label));
                 const compact = comparing.length > 2;
                 const fits = matched.filter((item) => !isRoom(item.label)).slice(0, compact ? 2 : 3);
@@ -1538,59 +1831,59 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                         <span className="cc-cmp-rate">{hotel.rating.toFixed(1)}</span>
                       </div>
                       <div className="cc-cmp-stats">
-                        <div><span>Estimated / night</span><strong>{hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "-"}</strong></div>
-                        <div><span>Guest rating</span><strong>{hotel.rating.toFixed(1)} / 5</strong></div>
-                        <div><span>Stay type</span><strong>{hotel.price_tier}</strong></div>
+                        <div><span>{t.estimatedPerNight}</span><strong>{hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : "-"}</strong></div>
+                        <div><span>{t.guestRating}</span><strong>{hotel.rating.toFixed(1)} / 5</strong></div>
+                        <div><span>{t.stayType}</span><strong>{hotel.price_tier}</strong></div>
                       </div>
                       <div className="cc-cmp-sec">
-                        <p className="cc-label">Room size</p>
-                        {room ? <div className="cc-cmp-item"><strong>{room.label}</strong><span>{room.detail}</span></div> : <p className="cc-meta">No qualifying room-size requirement was verified for this stay.</p>}
+                        <p className="cc-label">{t.roomSize}</p>
+                        {room ? <div className="cc-cmp-item"><strong>{room.label}</strong><span>{room.detail}</span></div> : <p className="cc-meta">{t.noRoomSizeVerified}</p>}
                       </div>
                       <div className="cc-cmp-sec">
-                        <p className="cc-label">Amenities</p>
-                        <div className="cc-chips">{hotel.amenities.length ? hotel.amenities.slice(0, compact ? 4 : 6).map((a) => <span key={a} className="cc-chip">{amenityLabels[a] ?? a}</span>) : <span className="cc-chip">No verified amenities listed</span>}</div>
+                        <p className="cc-label">{t.amenities}</p>
+                        <div className="cc-chips">{hotel.amenities.length ? hotel.amenities.slice(0, compact ? 4 : 6).map((a) => <span key={a} className="cc-chip">{localizedAmenity(a, language)}</span>) : <span className="cc-chip">{t.noVerifiedAmenities}</span>}</div>
                       </div>
                       <div className="cc-cmp-sec">
-                        <p className="cc-label">Why it fits</p>
-                        <p className="cc-meta">{fits.map((item) => item.label).join(" · ") || "Matches several parts of your trip."}</p>
+                        <p className="cc-label">{t.whyItFits}</p>
+                        <p className="cc-meta">{fits.map((item) => item.label).join(" · ") || t.matchesSeveralParts}</p>
                         {!compact && fits.map((item) => <div className="cc-cmp-item" key={`${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)}
                       </div>
                       <div className="cc-cmp-sec">
-                        <p className="cc-label">Reality Check</p>
+                        <p className="cc-label">{t.realityCheck}</p>
                         {reality.length > 0
                           ? reality.slice(0, compact ? 2 : 4).map((item) => <div className="cc-cmp-item" key={`${item.type}-${item.label}-${item.detail}`}><strong>{item.label}</strong><span>{item.detail}</span></div>)
-                          : <div className="cc-cmp-item"><strong>Available context</strong><span>{match.things_to_know}</span></div>}
+                          : <div className="cc-cmp-item"><strong>{t.availableContext}</strong><span>{match.things_to_know}</span></div>}
                       </div>
-                      <button type="button" className="cc-book-btn cc-cmp-book" onClick={() => { setCompareOpen(false); openBooking(hotel.id); }}>Check rates &amp; book <ArrowUpRight size={15} aria-hidden /></button>
+                      <button type="button" className="cc-book-btn cc-cmp-book" onClick={() => { setCompareOpen(false); openBooking(hotel.id); }}>{t.checkRatesBook} <ArrowUpRight size={15} aria-hidden /></button>
                     </div>
                   </section>
                 );
               })}
             </div>
-            <div className="cc-cmp-foot"><button type="button" className="cc-compare" onClick={() => setCompareOpen(false)}>Back to results</button></div>
+            <div className="cc-cmp-foot"><button type="button" className="cc-compare" onClick={() => setCompareOpen(false)}>{t.backToResults}</button></div>
           </div>
         </div>
       )}
 
       {bookingHotel && (
         <div className="cc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setBookingId(null); }}>
-          <div className="cc-modal cc-booking-modal" role="dialog" aria-modal="true" aria-label="Check rates">
-            <button type="button" className="cc-modal-x" onClick={() => setBookingId(null)} aria-label="Close"><X size={18} /></button>
-            <h2>You&apos;re ready to check rates</h2>
-            <p className="cc-meta">Check current prices and availability for {bookingHotel.name}.</p>
+          <div className="cc-modal cc-booking-modal" role="dialog" aria-modal="true" aria-label={t.checkRates}>
+            <button type="button" className="cc-modal-x" onClick={() => setBookingId(null)} aria-label={t.close}><X size={18} /></button>
+            <h2>{t.readyToCheckRates}</h2>
+            <p className="cc-meta">{t.checkCurrentPrices} {bookingHotel.name}.</p>
             <div className="cc-handoff">
               <div>
-                <p className="cc-label">Your stay</p>
+                <p className="cc-label">{t.yourStay}</p>
                 <strong>{bookingHotel.name}</strong>
                 <span>{bookingHotel.city}, {bookingHotel.country}</span>
               </div>
               <div className="cc-handoff-price">
-                <span>HotelIndice estimate</span>
+                <span>{t.hotelIndiceEstimate}</span>
                 <strong>{bookingHotel.estimated_price_per_night > 0 ? formatPrice(bookingHotel.estimated_price_per_night) : "-"}</strong>
-                <small>per night</small>
+                <small>{t.perNight}</small>
               </div>
             </div>
-            <div className="cc-note"><strong>Check the live rate</strong><p>Prices and availability can change. The booking partner will show the current rate before you book.</p></div>
+            <div className="cc-note"><strong>{t.checkLiveRate}</strong><p>{t.liveRateNotice}</p></div>
             <div className="cc-options">
               {partnerLinks(bookingHotel).map((partner) => (
                 <a key={partner.label} href={partner.href} target="_blank" rel="sponsored noopener noreferrer" onClick={() => { track({ kind: "partner_click", hotel_id: bookingHotel.id.slice(0, 80), partner: partner.label }); setBookingId(null); }}>
@@ -1598,49 +1891,49 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                 </a>
               ))}
             </div>
-            <p className="cc-disclosure">Some links may earn Hotel Indice a commission. This never affects how stays are matched or presented.</p>
+            <p className="cc-disclosure">{t.footerCommission}</p>
           </div>
         </div>
       )}
 
       {tripsOpen && (
         <div className="cc-drawer-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setTripsOpen(false); }}>
-          <aside className="cc-drawer" role="dialog" aria-modal="true" aria-label="Your trips">
+          <aside className="cc-drawer" role="dialog" aria-modal="true" aria-label={t.yourTrips}>
             <div className="cc-drawer-head">
-              <h2>Your trips</h2>
-              <button type="button" className="cc-modal-x" onClick={() => setTripsOpen(false)} aria-label="Close" autoFocus><X size={18} /></button>
+              <h2>{t.yourTrips}</h2>
+              <button type="button" className="cc-modal-x" onClick={() => setTripsOpen(false)} aria-label={t.close} autoFocus><X size={18} /></button>
             </div>
             <AccountPanel account={account} />
             <div className="cc-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tripsTab === "trips"} onClick={() => setTripsTab("trips")}>Trips ({store.trips.length})</button>
-              <button type="button" role="tab" aria-selected={tripsTab === "stays"} onClick={() => setTripsTab("stays")}>Saved stays ({store.stays.length})</button>
-              <button type="button" role="tab" aria-selected={tripsTab === "alerts"} onClick={() => setTripsTab("alerts")}>Alerts ({alerts.alerts.length})</button>
+              <button type="button" role="tab" aria-selected={tripsTab === "trips"} onClick={() => setTripsTab("trips")}>{t.tripsTab} ({store.trips.length})</button>
+              <button type="button" role="tab" aria-selected={tripsTab === "stays"} onClick={() => setTripsTab("stays")}>{t.savedStaysTab} ({store.stays.length})</button>
+              <button type="button" role="tab" aria-selected={tripsTab === "alerts"} onClick={() => setTripsTab("alerts")}>{t.alertsTab} ({alerts.alerts.length})</button>
             </div>
             <div className="cc-drawer-body">
               {tripsTab === "trips" && (store.trips.length === 0
-                ? <p className="cc-drawer-empty">Search for a stay and your trip will appear here, so you can pick it up later.</p>
+                ? <p className="cc-drawer-empty">{t.emptyTrips}</p>
                 : (["saved", "recent"] as const).map((group) => {
                     const rows = store.trips.filter((item) => (group === "saved" ? item.saved : !item.saved));
                     if (!rows.length) return null;
                     return (
                       <section key={group}>
-                        <p className="cc-label">{group === "saved" ? "Saved trips" : "Recent searches"}</p>
+                        <p className="cc-label">{group === "saved" ? t.savedTrips : t.recentSearches}</p>
                         {rows.map((item) => (
                           <div className="cc-trip" key={item.id}>
                             <button type="button" className="cc-trip-main" onClick={() => { setTripsOpen(false); setTrip(item.trip); void searchTrip(item.trip); }}>
                               <strong>{tripTitle(item.trip)}</strong>
-                              <span>{tripSummary(item.trip)}</span>
+                              <span>{tripSummary(item.trip, language)}</span>
                             </button>
-                            <button type="button" className="cc-trip-icon" aria-pressed={item.saved} aria-label={item.saved ? "Unsave trip" : "Save trip"} onClick={() => toggleSaveTrip(item.id)}><Bookmark size={16} fill={item.saved ? "currentColor" : "none"} aria-hidden /></button>
-                            <button type="button" className="cc-trip-icon" aria-label="Remove trip" onClick={() => removeTrip(item.id)}><Trash2 size={16} aria-hidden /></button>
+                            <button type="button" className="cc-trip-icon" aria-pressed={item.saved} aria-label={item.saved ? t.unsaveTrip : t.saveTrip} onClick={() => toggleSaveTrip(item.id)}><Bookmark size={16} fill={item.saved ? "currentColor" : "none"} aria-hidden /></button>
+                            <button type="button" className="cc-trip-icon" aria-label={t.removeTrip} onClick={() => removeTrip(item.id)}><Trash2 size={16} aria-hidden /></button>
                           </div>
                         ))}
                       </section>
                     );
                   }))}
-              {tripsTab === "alerts" && <AlertsTab alerts={alerts} signedIn={Boolean(account.session)} formatPrice={formatPrice} />}
+              {tripsTab === "alerts" && <AlertsTab alerts={alerts} signedIn={Boolean(account.session)} formatPrice={formatPrice} language={language} />}
               {tripsTab === "stays" && (store.stays.length === 0
-                ? <p className="cc-drawer-empty">Tap the heart on a stay to keep it here.</p>
+                ? <p className="cc-drawer-empty">{t.emptySavedStays}</p>
                 : store.stays.map((item) => (
                     <div className="cc-trip cc-stay" key={item.hotel.id}>
                       <button type="button" className="cc-trip-main cc-stay-main" onClick={() => { setTripsOpen(false); openHotel(item.hotel.id); }}>
@@ -1652,51 +1945,51 @@ export function CommandCenter({ initialMatches, catalogError }: Props) {
                     </div>
                   )))}
             </div>
-            <p className="cc-drawer-note">{account.session ? "Synced to your account." : "Saved on this device. Sign in above to keep them everywhere."} <button type="button" className="cc-linkbtn" onClick={() => { setTripsOpen(false); openListing(); }}>Own a hotel? List it</button></p>
+            <p className="cc-drawer-note">{account.session ? t.syncedToAccount : t.savedOnDevice} <button type="button" className="cc-linkbtn" onClick={() => { setTripsOpen(false); openListing(); }}>{t.listYourHotelPrompt}</button></p>
           </aside>
         </div>
       )}
 
       {listOpen && (
         <div className="cc-modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setListOpen(false); }}>
-          <div className="cc-modal cc-listing" role="dialog" aria-modal="true" aria-label="List your hotel">
-            <button type="button" className="cc-modal-x" onClick={() => setListOpen(false)} aria-label="Close"><X size={18} /></button>
+          <div className="cc-modal cc-listing" role="dialog" aria-modal="true" aria-label={t.listYourHotel}>
+            <button type="button" className="cc-modal-x" onClick={() => setListOpen(false)} aria-label={t.close}><X size={18} /></button>
             {listState === "done" ? (
               <div className="cc-listing-done">
-                <h2>Thanks, we have it</h2>
-                <p className="cc-meta">We review every hotel before it appears. If we need anything else, we will email you.</p>
-                <button type="button" className="ccb-done" onClick={() => setListOpen(false)}>Close</button>
+                <h2>{t.listingThanks}</h2>
+                <p className="cc-meta">{t.listingReviewNotice}</p>
+                <button type="button" className="ccb-done" onClick={() => setListOpen(false)}>{t.close}</button>
               </div>
             ) : (
               <form onSubmit={submitListing} noValidate={false}>
-                <h2>List your hotel</h2>
-                <p className="cc-meta">Tell us about your property and we will review it for Hotel Indice.</p>
+                <h2>{t.listYourHotel}</h2>
+                <p className="cc-meta">{t.listingIntro}</p>
                 <div className="cc-form">
-                  <label className="cc-field cc-span2"><span>Hotel name</span><input name="hotel_name" required minLength={2} maxLength={120} autoComplete="organization" /></label>
-                  <label className="cc-field"><span>City</span><input name="city" required minLength={2} maxLength={80} /></label>
-                  <label className="cc-field"><span>Country</span><input name="country" required minLength={2} maxLength={80} /></label>
-                  <label className="cc-field"><span>Your name</span><input name="contact_name" required minLength={2} maxLength={80} autoComplete="name" /></label>
-                  <label className="cc-field"><span>Your role</span>
-                    <select name="role" defaultValue="Owner"><option>Owner</option><option>Manager</option><option>Agent</option><option>Other</option></select>
+                  <label className="cc-field cc-span2"><span>{t.hotelName}</span><input name="hotel_name" required minLength={2} maxLength={120} autoComplete="organization" /></label>
+                  <label className="cc-field"><span>{t.cityLabel}</span><input name="city" required minLength={2} maxLength={80} /></label>
+                  <label className="cc-field"><span>{t.countryLabel}</span><input name="country" required minLength={2} maxLength={80} /></label>
+                  <label className="cc-field"><span>{t.yourName}</span><input name="contact_name" required minLength={2} maxLength={80} autoComplete="name" /></label>
+                  <label className="cc-field"><span>{t.yourRole}</span>
+                    <select name="role" defaultValue="Owner"><option value="Owner">{t.ownerRole}</option><option value="Manager">{t.managerRole}</option><option value="Agent">{t.agentRole}</option><option value="Other">{t.otherRole}</option></select>
                   </label>
-                  <label className="cc-field cc-span2"><span>Email</span><input name="contact_email" type="email" required maxLength={120} autoComplete="email" /></label>
-                  <label className="cc-field"><span>Website or booking link (optional)</span><input name="website" inputMode="url" maxLength={300} placeholder="https://" /></label>
-                  <label className="cc-field"><span>Price from, per night in USD (optional)</span><input name="price" type="number" min="1" max="100000" step="1" inputMode="numeric" /></label>
+                  <label className="cc-field cc-span2"><span>{t.emailLabel}</span><input name="contact_email" type="email" required maxLength={120} autoComplete="email" /></label>
+                  <label className="cc-field"><span>{t.websiteBookingOptional}</span><input name="website" inputMode="url" maxLength={300} placeholder="https://" /></label>
+                  <label className="cc-field"><span>{t.priceFromOptional}</span><input name="price" type="number" min="1" max="100000" step="1" inputMode="numeric" /></label>
                   <div className="cc-field cc-span2">
-                    <span>What does it offer?</span>
+                    <span>{t.whatDoesItOffer}</span>
                     <div className="ccb-checks">
                       {amenityChoices.map((amenity) => (
-                        <label className="ccb-check" key={amenity}><input type="checkbox" name="amenities" value={amenity} /><span>{amenityLabels[amenity] ?? amenity.replaceAll("_", " ")}</span></label>
+                        <label className="ccb-check" key={amenity}><input type="checkbox" name="amenities" value={amenity} /><span>{localizedAmenity(amenity, language)}</span></label>
                       ))}
                     </div>
                   </div>
-                  <label className="cc-field cc-span2"><span>A few words about it (optional)</span><textarea spellCheck={false} name="description" rows={3} maxLength={600} /></label>
+                  <label className="cc-field cc-span2"><span>{t.descriptionOptional}</span><textarea spellCheck={false} name="description" rows={3} maxLength={600} /></label>
                   <label className="cc-hp" aria-hidden="true">Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
                 </div>
                 {listState === "error" && <p className="cc-form-error" role="alert">{listError}</p>}
                 <div className="cc-form-foot">
-                  <button type="button" className="cc-compare" onClick={() => setListOpen(false)}>Cancel</button>
-                  <button type="submit" className="ccb-done" disabled={listState === "sending"}>{listState === "sending" ? "Sending..." : "Send for review"}</button>
+                  <button type="button" className="cc-compare" onClick={() => setListOpen(false)}>{t.cancel}</button>
+                  <button type="submit" className="ccb-done" disabled={listState === "sending"}>{listState === "sending" ? t.sending : t.sendForReview}</button>
                 </div>
               </form>
             )}

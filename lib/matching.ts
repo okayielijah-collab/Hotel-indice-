@@ -942,16 +942,33 @@ export function rankHotels(
                   : trip.party === "business"
                     ? "Work trip"
                     : trip.party,
-          detail: "The hotel's available data supports this type of stay.",
+          detail:
+            trip.party === "family"
+              ? "Family suitability is supported by the hotel's available data."
+              : trip.party === "couple"
+                ? "The hotel's available data supports a couples stay."
+                : trip.party === "solo"
+                  ? "The hotel's available data supports a solo stay."
+                  : trip.party === "business"
+                    ? "The hotel's available data supports a work-oriented stay."
+                    : "The hotel's available data supports this type of stay.",
         });
       }
 
       if (trip.maxPrice !== null && hotel.estimated_price_per_night > 0) {
-        matchEvidence.push({
-          type: "match",
-          label: "Within budget",
-          detail: `Estimated at $${hotel.estimated_price_per_night}/night.`,
-        });
+        if (hotel.estimated_price_per_night <= trip.maxPrice) {
+          matchEvidence.push({
+            type: "match",
+            label: "Within budget",
+            detail: `Estimated at $${hotel.estimated_price_per_night}/night, within your $${trip.maxPrice} nightly limit.`,
+          });
+        } else {
+          matchEvidence.push({
+            type: "tradeoff",
+            label: "Above budget",
+            detail: `Estimated at $${hotel.estimated_price_per_night}/night, above your $${trip.maxPrice} nightly limit.`,
+          });
+        }
       }
 
       if (trip.minRoomSizeSqm !== null) {
@@ -971,6 +988,35 @@ export function rankHotels(
             type: "match",
             label: `Room ≥ ${trip.minRoomSizeSqm} sqm`,
             detail: `${qualifyingRoom.name} is ${qualifyingRoom.room_size_sqm} sqm.`,
+          });
+        }
+      }
+
+      // Add grounded hotel facts when they help explain a destination-only search.
+      // These are informational, not proof that the hotel fits a trip preference.
+      if (matchEvidence.length === 0) {
+        for (const amenity of hotel.amenities.slice(0, 3)) {
+          const label = amenityLabels[amenity] || amenity.replaceAll("_", " ");
+          matchEvidence.push({
+            type: "missing",
+            label,
+            detail: `${label} is listed in this hotel's available amenities.`,
+          });
+        }
+
+        if (hotel.rating > 0 && hotel.review_count > 0) {
+          matchEvidence.push({
+            type: "missing",
+            label: "Guest ratings",
+            detail: `Rated ${hotel.rating.toFixed(1)} from ${hotel.review_count.toLocaleString()} reviews.`,
+          });
+        }
+
+        if (hotel.editorial_notes.trim()) {
+          matchEvidence.push({
+            type: "missing",
+            label: "Hotel overview",
+            detail: hotel.editorial_notes.trim(),
           });
         }
       }

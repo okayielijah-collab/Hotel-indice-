@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Bell, Trash2 } from "lucide-react";
 import type { Hotel } from "@/lib/hotels";
 import type { Account } from "./account";
+import { getTranslations, type SiteLanguage } from "@/lib/i18n";
 
 export type PriceAlert = {
   id: string;
@@ -40,10 +41,11 @@ export type Alerts = {
   remove: (id: string) => Promise<void>;
 };
 
-const day = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const day = (iso: string, language: SiteLanguage = "en") =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString(language === "es" ? "es-ES" : language === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
-export function useAlerts(account: Account): Alerts {
+export function useAlerts(account: Account, language: SiteLanguage = "en"): Alerts {
+  const t = getTranslations(language);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const signedIn = Boolean(account.session);
   const { authedFetch } = account;
@@ -70,17 +72,17 @@ export function useAlerts(account: Account): Alerts {
     async (input: NewAlert) => {
       try {
         const res = await authedFetch("/api/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-        if (!res) return "Please sign in again.";
+        if (!res) return t.signInAgain;
         const data = (await res.json().catch(() => ({}))) as { alert?: PriceAlert; error?: string };
-        if (!res.ok || !data.alert) return data.error || "Could not save the alert.";
+        if (!res.ok || !data.alert) return data.error || t.couldNotSaveAlert;
         const saved = data.alert;
         setAlerts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
         return "";
       } catch {
-        return "Network problem. Try again.";
+        return t.networkProblem;
       }
     },
-    [authedFetch],
+    [authedFetch, t.signInAgain, t.couldNotSaveAlert, t.networkProblem],
   );
 
   const remove = useCallback(
@@ -107,6 +109,7 @@ export function WatchPrice({
   signedIn,
   alerts,
   onNeedSignIn,
+  language = "en",
 }: {
   hotel: Hotel;
   dates: { checkIn: string; checkOut: string } | null;
@@ -115,7 +118,9 @@ export function WatchPrice({
   signedIn: boolean;
   alerts: Alerts;
   onNeedSignIn: () => void;
+  language?: SiteLanguage;
 }) {
+  const t = getTranslations(language);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
@@ -130,7 +135,7 @@ export function WatchPrice({
       onNeedSignIn();
       return;
     }
-    setNote(dates ? "" : "Pick your dates first so we watch the right price.");
+    setNote(dates ? "" : t.pickDatesFirst);
     setTarget(String(existing?.target_price ?? (price > 0 ? Math.round(price * 0.9) : "")));
     setOpen((current) => !current);
   };
@@ -158,17 +163,17 @@ export function WatchPrice({
   return (
     <>
       <button type="button" className="cc-dm-save cc-dm-watch" aria-pressed={Boolean(existing)} aria-expanded={open} onClick={begin}>
-        <Bell size={15} aria-hidden /> {existing ? "Watching" : "Watch price"}
+        <Bell size={15} aria-hidden /> {existing ? t.watchingPrice : t.watchPrice}
       </button>
       {open && (
-        <div className="cc-watch-form" role="group" aria-label="Price alert">
-          <p>Email me when the price drops below this amount a night, in US dollars.</p>
-          {dates && <small>For {day(dates.checkIn)} to {day(dates.checkOut)}{price > 0 ? `. Right now about $${Math.round(price)}.` : "."}</small>}
+        <div className="cc-watch-form" role="group" aria-label={t.priceAlert}>
+          <p>{t.emailWhenPriceDrops}</p>
+          {dates && <small>{day(dates.checkIn, language)} {t.to} {day(dates.checkOut, language)}{price > 0 ? `. ${t.rightNowAbout} $${Math.round(price)}.` : "."}</small>}
           <div className="cc-watch-row">
             <span aria-hidden>$</span>
-            <input inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^\d.]/g, ""))} aria-label="Target price a night in US dollars" disabled={!dates} />
-            <button type="button" onClick={() => void save()} disabled={busy || !dates || !(Number(target) > 0)}>{busy ? "Saving" : existing ? "Update" : "Save alert"}</button>
-            <button type="button" className="cc-watch-cancel" onClick={() => setOpen(false)}>Cancel</button>
+            <input inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^\d.]/g, ""))} aria-label={t.targetPriceNightUsd} disabled={!dates} />
+            <button type="button" onClick={() => void save()} disabled={busy || !dates || !(Number(target) > 0)}>{busy ? t.savingAlert : existing ? t.updateAlert : t.saveAlert}</button>
+            <button type="button" className="cc-watch-cancel" onClick={() => setOpen(false)}>{t.stopWatching}</button>
           </div>
           {note && <p className="cc-watch-note" role="status">{note}</p>}
         </div>
@@ -178,9 +183,10 @@ export function WatchPrice({
 }
 
 /** The Alerts tab inside Trips. */
-export function AlertsTab({ alerts, signedIn, formatPrice }: { alerts: Alerts; signedIn: boolean; formatPrice: (usd: number) => string }) {
-  if (!signedIn) return <p className="cc-drawer-empty">Sign in above to watch a stay. We email you when its price drops.</p>;
-  if (!alerts.alerts.length) return <p className="cc-drawer-empty">Open a stay and tap Watch price. We check once a day and email you when it drops below your price.</p>;
+export function AlertsTab({ alerts, signedIn, formatPrice, language = "en" }: { alerts: Alerts; signedIn: boolean; formatPrice: (usd: number) => string; language?: SiteLanguage }) {
+  const t = getTranslations(language);
+  if (!signedIn) return <p className="cc-drawer-empty">{t.signInToWatch}</p>;
+  if (!alerts.alerts.length) return <p className="cc-drawer-empty">{t.emptyAlerts}</p>;
   return (
     <>
       {alerts.alerts.map((item) => (
@@ -188,14 +194,14 @@ export function AlertsTab({ alerts, signedIn, formatPrice }: { alerts: Alerts; s
           <div className="cc-trip-main cc-alert-main">
             <strong>{item.hotel_name}</strong>
             <span>
-              {item.city ? `${item.city}. ` : ""}{day(item.check_in)} to {day(item.check_out)}
+              {item.city ? `${item.city}. ` : ""}{day(item.check_in, language)} {t.to} {day(item.check_out, language)}
             </span>
             <span>
-              Tell me below {formatPrice(Number(item.target_price))}.{" "}
-              {item.last_price ? `Last seen ${formatPrice(Number(item.last_price))}.` : "Not checked yet."}
+              {t.tellMeBelow} {formatPrice(Number(item.target_price))}.{" "}
+              {item.last_price ? ` ${t.lastSeen}: ${formatPrice(Number(item.last_price))}.` : t.notCheckedYet}
             </span>
           </div>
-          <button type="button" className="cc-trip-icon" aria-label={`Stop watching ${item.hotel_name}`} onClick={() => void alerts.remove(item.id)}>
+          <button type="button" className="cc-trip-icon" aria-label={`${t.stopWatchingHotel} ${item.hotel_name}`} onClick={() => void alerts.remove(item.id)}>
             <Trash2 size={16} aria-hidden />
           </button>
         </div>
