@@ -1432,8 +1432,8 @@
   }
 
   .cc-card-body {
-    gap: 4px !important;
-    padding: 7px 9px 8px !important;
+    gap: 5px !important;
+    padding: 9px 11px 10px !important;
   }
 
   .cc-card-city {
@@ -1441,7 +1441,7 @@
   }
 
   .cc-card-name {
-    font-size: 14px !important;
+    font-size: 17px !important;
     line-height: 1.15 !important;
   }
 
@@ -1466,7 +1466,7 @@
   }
 
   .cc-card-price b {
-    font-size: 15px !important;
+    font-size: 14px !important;
   }
 
   .cc-card-price small {
@@ -1608,7 +1608,7 @@
     padding: 10px 18px !important;
     z-index: 4 !important;
     border-radius: 12px !important;
-    font-size: 15px !important;
+    font-size: 14px !important;
     white-space: nowrap !important;
   }
 
@@ -1778,7 +1778,7 @@
     min-height: 32px !important;
     padding: 0 9px !important;
     border-radius: 7px !important;
-    font-size: 10px !important;
+    font-size: 11px !important;
   }
 
   .cc-actionbar-tools {
@@ -2674,13 +2674,13 @@
 
     transform: translateX(-50%) !important;
 
-    width: 120px !important;
-    min-width: 120px !important;
-    max-width: 120px !important;
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
 
-    height: 48px !important;
-    min-height: 48px !important;
-    max-height: 48px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -2690,12 +2690,12 @@
     justify-content: center !important;
 
     border: 1px solid var(--cc-line) !important;
-    border-radius: 12px !important;
+    border-radius: 10px !important;
 
     background: var(--cc-panel) !important;
     color: var(--cc-text) !important;
 
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .35) !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .22) !important;
 
     z-index: 1500 !important;
   }
@@ -2709,9 +2709,9 @@
   .cc-views button {
     all: unset !important;
 
-    width: 120px !important;
-    min-width: 120px !important;
-    height: 48px !important;
+    width: 96px !important;
+    min-width: 96px !important;
+    height: 40px !important;
 
     display: flex !important;
     align-items: center !important;
@@ -2721,12 +2721,12 @@
     margin: 0 !important;
 
     border: 0 !important;
-    border-radius: 11px !important;
+    border-radius: 9px !important;
 
     background: transparent !important;
     color: var(--cc-text) !important;
 
-    font: 650 13px system-ui, sans-serif !important;
+    font: 650 12px system-ui, sans-serif !important;
 
     text-align: center !important;
     cursor: pointer !important;
@@ -4612,7 +4612,7 @@
   }
 
   .cc-card-body {
-    padding: 8px 10px 9px !important;
+    padding: 9px 11px 10px !important;
     gap: 4px !important;
   }
 
@@ -4621,13 +4621,13 @@
   }
 
   .cc-card-name {
-    font-size: 15px !important;
+    font-size: 14px !important;
     line-height: 1.15 !important;
   }
 
   .cc-card-why {
-    min-height: 29px !important;
-    max-height: 29px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
     font-size: 11px !important;
     line-height: 1.3 !important;
     -webkit-line-clamp: 2 !important;
@@ -4795,12 +4795,41 @@
   opacity: 1 !important;
 }
 
-/* Currency selector — black and gold header styling */
-.cc-root .cc-currency,
+
+/* Match hotel price accents to the gold currency selector */
+.cc-root[data-theme="light"] .cc-card-price b {
+  color: #f0b44c !important;
+}
+\n
+/* Restore consistent black-and-gold currency selector */
+.cc-root .cc-currency {
+  background: #0b0b0b !important;
+  color: #f0b44c !important;
+  border-color: #333333 !important;
+}
+
 .cc-root .cc-currency select {
+  background: transparent !important;
+  color: #f0b44c !important;
+}
+
+/* Theme-aware currency selector */
+.cc-root[data-theme="dark"] .cc-currency,
+.cc-root[data-theme="dark"] .cc-currency select {
   background-color: #0b0b0b !important;
   color: #f0b44c !important;
   border-color: #333333 !important;
+}
+
+.cc-root[data-theme="light"] .cc-currency {
+  background-color: var(--cc-panel) !important;
+  color: var(--cc-text) !important;
+  border-color: var(--cc-line) !important;
+}
+
+.cc-root[data-theme="light"] .cc-currency select {
+  background-color: transparent !important;
+  color: var(--cc-text) !important;
 }
 
 .cc-root .cc-currency select {
@@ -4923,17 +4952,49 @@
 
 
 /* Voice search */
+
+/* Final microphone appearance: free-standing icon, never a colored button */
+.cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn,
+.cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn:hover,
+.cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn:focus,
+.cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn:active {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: none !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #183e50 !important;
+}
+
+.cc-root[data-theme="dark"][data-entered="false"] .cc-hero-form .cc-voice-btn {
+  color: #f3efe6 !important;
+}
+
 .cc-hero-form .cc-voice-btn {
   display: inline-grid;
   place-items: center;
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid rgba(127, 140, 140, .45);
-  border-radius: 11px;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
   color: inherit;
+  box-shadow: none;
+}
+
+.cc-hero-form .cc-voice-btn,
+.cc-hero-form .cc-voice-btn:hover,
+.cc-hero-form .cc-voice-btn:focus,
+.cc-hero-form .cc-voice-btn:active {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit;
+  outline-offset: 2px;
 }
 .cc-hero-form .cc-voice-btn:hover { border-color: currentColor; }
 .cc-hero-form .cc-voice-btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -4946,15 +5007,56 @@
 .cc-voice-error { color: #b42318; }
 .cc-root[data-theme="dark"] .cc-voice-error { color: #ffaaa3; }
 @media (max-width: 640px) {
-  .cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn {
-    grid-column: 1;
-    grid-row: 2;
-    width: 42px;
-    min-width: 42px;
+  .cc-root[data-entered="false"] .cc-hero-form {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 32px;
+    gap: 8px 6px;
+    padding: 10px;
   }
-  .cc-root[data-entered="false"] .cc-hero-form > button[type="submit"] {
+
+  .cc-root[data-entered="false"] .cc-hero-form > svg {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-form input {
+    grid-column: 1;
+    grid-row: 1;
+    padding-left: 26px;
+    padding-right: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-form .cc-voice-btn {
     grid-column: 2;
+    grid-row: 1;
+    justify-self: center;
+    align-self: center;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    opacity: 1;
+    visibility: visible;
+    position: relative;
+    z-index: 2;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-form > button[type="submit"] {
+    grid-column: 1 / -1;
     grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 11px 16px;
   }
 }
 
@@ -5100,5 +5202,109 @@
 @media (prefers-reduced-motion: reduce) {
   .cc-filter-tab {
     transition: none;
+  }
+}
+
+
+
+
+
+/* Homepage-only mobile polish */
+@media (max-width: 600px) {
+  .cc-root[data-entered="false"] .cc-head {
+    overflow: visible !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cc-root[data-entered="false"] .cc-head-end::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero {
+    padding-top: 28px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-hero-inner {
+    gap: 12px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-landing > .cc-sec:first-child {
+    padding-top: 12px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps {
+    gap: 8px !important;
+    margin-top: 12px !important;
+  }
+
+  .cc-root[data-entered="false"] .cc-steps li {
+    padding: 14px !important;
+  }
+}
+
+/* Compact filter mobile polish */
+@media (max-width: 760px) {
+  /* Keep the header controls usable without clipping the Ranges button. */
+  .cc-head {
+    overflow: visible;
+  }
+
+  .cc-head-end {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    scroll-padding-inline: 8px;
+  }
+
+  .cc-head-end > * {
+    flex-shrink: 0;
+  }
+
+  .cc-head-end .cc-fbtn.cc-mobile-only {
+    scroll-snap-align: end;
+  }
+
+  /* Reduce the expanded filter's height on small screens. */
+  .cc-root[data-strip="open"] .cc-strip {
+    max-height: 360px;
+    padding: 6px 10px;
+  }
+
+  .cc-filter-panel {
+    margin-top: 7px;
+    padding: 8px 8px 4px;
+  }
+
+  .cc-filter-panel .cc-rng {
+    height: 48px;
+  }
+
+  .cc-filter-panel .cc-rng-ticks {
+    margin-top: 4px;
+  }
+
+  /* Give the floating Map/List control a little more clearance. */
+  .cc-root[data-view="list"] .cc-views {
+    bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .cc-root[data-view="list"] .cc-list {
+    padding-bottom: calc(170px + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom: calc(170px + env(safe-area-inset-bottom));
+  }
+
+  .cc-root[data-view="list"] .cc-list-col {
+    padding-bottom: 0 !important;
   }
 }
