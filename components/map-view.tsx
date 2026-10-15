@@ -27,6 +27,7 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   const centeredOn = useRef<string | null>(null);
   const fittedLocations = useRef<string>("");
   const drawRef = useRef<(() => void) | null>(null);
+  const pendingFit = useRef<(() => void) | null>(null);
   const [locateNote, setLocateNote] = useState("");
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
@@ -188,20 +189,23 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
         .join("|");
 
       if (locationSignature !== fittedLocations.current) {
-        fittedLocations.current = locationSignature;
-
-        if (matches.length === 1) {
-          instance.setView(
-            [matches[0].hotel.latitude, matches[0].hotel.longitude],
-            13
-          );
-        } else if (matches.length > 1) {
-          instance.fitBounds(
-            L.latLngBounds(
-              matches.map(({ hotel }) => [hotel.latitude, hotel.longitude])
-            ),
-            { padding: [65, 65], maxZoom: 14, animate: true }
-          );
+        const fit = () => {
+          if (matches.length === 1) {
+            instance.setView([matches[0].hotel.latitude, matches[0].hotel.longitude], 13);
+          } else if (matches.length > 1) {
+            instance.fitBounds(
+              L.latLngBounds(matches.map(({ hotel }) => [hotel.latitude, hotel.longitude] as [number, number])),
+              { padding: [65, 65], maxZoom: 14, animate: true },
+            );
+          }
+        };
+        const size = instance.getSize();
+        if (size.x < 50 || size.y < 50) {
+          pendingFit.current = () => { fittedLocations.current = locationSignature; fit(); };
+        } else {
+          pendingFit.current = null;
+          fittedLocations.current = locationSignature;
+          fit();
         }
       }
     }).catch((error) => { console.error("Map pins unavailable", error); setFailed(true); });
@@ -267,7 +271,18 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
   // The map sits in a hidden panel on phones. Tell Leaflet whenever its box changes size.
   useEffect(() => {
     if (!ready || !container.current || typeof ResizeObserver === "undefined") return;
-    const watcher = new ResizeObserver(() => map.current?.invalidateSize());
+    const watcher = new ResizeObserver(() => {
+      const instance = map.current;
+      if (!instance) return;
+      instance.invalidateSize();
+      const size = instance.getSize();
+      if (pendingFit.current && size.x >= 50 && size.y >= 50) {
+        const run = pendingFit.current;
+        pendingFit.current = null;
+        run();
+        drawRef.current?.();
+      }
+    });
     watcher.observe(container.current);
     return () => watcher.disconnect();
   }, [ready]);

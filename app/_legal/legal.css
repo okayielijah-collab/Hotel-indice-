@@ -1,0 +1,40 @@
+.legal {
+  --l-bg: #f7f8f6;
+  --l-ink: #1c2d36;
+  --l-dim: #5f6f75;
+  --l-line: #dfe5e2;
+  --l-link: #193e50;
+  min-height: 100vh;
+  background: var(--l-bg);
+  color: var(--l-ink);
+  font-family: "Bahnschrift", "Segoe UI Variable Text", "Avenir Next", system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+@media (prefers-color-scheme: dark) {
+  .legal {
+    --l-bg: #0f1a20;
+    --l-ink: #e6eef0;
+    --l-dim: #9fb0b5;
+    --l-line: #243640;
+    --l-link: #9fd0e0;
+  }
+}
+.legal-wrap { max-width: 44rem; margin: 0 auto; padding: 0 1.25rem; }
+.legal-top { border-bottom: 1px solid var(--l-line); }
+.legal-top .legal-wrap { padding-top: 1rem; padding-bottom: 1rem; }
+.legal-brand { font-size: 1.15rem; font-weight: 600; color: inherit; text-decoration: none; }
+.legal-brand em { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; font-weight: 500; }
+.legal h1,
+.legal h2 { font-family: Georgia, "Iowan Old Style", "Times New Roman", serif; font-weight: 500; letter-spacing: -0.01em; }
+.legal h1 { font-size: clamp(2rem, 6vw, 2.75rem); line-height: 1.1; margin: 2.5rem 0 0.5rem; }
+.legal h2 { font-size: 1.4rem; line-height: 1.25; margin: 2.25rem 0 0.5rem; }
+.legal-updated { margin: 0 0 2rem; color: var(--l-dim); font-size: 0.95rem; }
+.legal p { margin: 0.75rem 0; max-width: 68ch; }
+.legal ul { list-style: disc; margin: 0.5rem 0 1rem; padding-left: 1.25rem; max-width: 68ch; }
+.legal li { margin: 0.4rem 0; }
+.legal a { color: var(--l-link); text-underline-offset: 3px; }
+.legal a:focus-visible { outline: 2px solid var(--l-link); outline-offset: 3px; border-radius: 2px; }
+.legal-foot { margin-top: 3.5rem; border-top: 1px solid var(--l-line); color: var(--l-dim); font-size: 0.95rem; }
+.legal-foot .legal-wrap { padding-top: 1.5rem; padding-bottom: 3rem; }
+.legal-foot nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { CommandCenter } from "@/components/command-center";
 import { getCatalog } from "@/lib/hotels";
 import { rankHotels, type TripRequest } from "@/lib/matching";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const initialTrip: TripRequest = { destination: "", party: "", vibe: "", budget: "Any", amenities: [], query: "" };
 

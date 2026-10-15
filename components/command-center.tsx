@@ -82,24 +82,24 @@ const localizedExamples: Record<SiteLanguage, string[]> = {
   en: [
     "A romantic weekend in Paris with a spa",
     "A work trip to Lagos with fast wifi",
-    "A quiet Bali escape with a pool under $180",
+    "A Bali escape with a pool under $180",
   ],
   es: [
     "Un fin de semana romántico en París con spa",
     "Un viaje de trabajo a Lagos con wifi rápido",
-    "Una escapada tranquila a Bali con piscina por menos de 180 $",
+    "Una escapada a Bali con piscina por menos de 180 $",
   ],
   fr: [
     "Un week-end romantique à Paris avec spa",
     "Un voyage professionnel à Lagos avec un wifi rapide",
-    "Une escapade paisible à Bali avec piscine à moins de 180 $",
+    "Une escapade à Bali avec piscine à moins de 180 $",
   ],
 };
 
 const examples = [
   "A romantic weekend in Paris with a spa",
   "A work trip to Lagos with fast wifi",
-  "A quiet Bali escape with a pool under $180",
+  "A Bali escape with a pool under $180",
 ];
 // Footer links. Change these if your pages live somewhere else. Leave CONTACT_EMAIL empty to hide the Contact link.
 const SITE_LINKS = { about: "/about", privacy: "/privacy", terms: "/terms" };
@@ -110,7 +110,7 @@ const localizedPopularTripTitles: Record<SiteLanguage, Record<string, string>> =
   en: {
     Paris: "A romantic weekend in Paris",
     Lagos: "A work trip to Lagos",
-    Bali: "A quiet Bali escape",
+    Bali: "A Bali escape",
     Tokyo: "A stylish stay in Tokyo",
     London: "A city break in London",
     "New York": "A weekend in New York",
@@ -118,7 +118,7 @@ const localizedPopularTripTitles: Record<SiteLanguage, Record<string, string>> =
   es: {
     Paris: "Un fin de semana romántico en París",
     Lagos: "Un viaje de trabajo a Lagos",
-    Bali: "Una escapada tranquila a Bali",
+    Bali: "Una escapada a Bali",
     Tokyo: "Una estancia con estilo en Tokio",
     London: "Una escapada urbana a Londres",
     "New York": "Un fin de semana en Nueva York",
@@ -126,7 +126,7 @@ const localizedPopularTripTitles: Record<SiteLanguage, Record<string, string>> =
   fr: {
     Paris: "Un week-end romantique à Paris",
     Lagos: "Un voyage professionnel à Lagos",
-    Bali: "Une escapade paisible à Bali",
+    Bali: "Une escapade à Bali",
     Tokyo: "Un séjour élégant à Tokyo",
     London: "Une escapade citadine à Londres",
     "New York": "Un week-end à New York",
@@ -136,7 +136,7 @@ const localizedPopularTripTitles: Record<SiteLanguage, Record<string, string>> =
 const POPULAR_TRIPS = [
   { city: "Paris", title: "A romantic weekend in Paris", query: "A romantic weekend in Paris with a spa" },
   { city: "Lagos", title: "A work trip to Lagos", query: "A work trip to Lagos with fast wifi" },
-  { city: "Bali", title: "A quiet Bali escape", query: "A quiet Bali escape with a pool" },
+  { city: "Bali", title: "A Bali escape", query: "A Bali escape with a pool" },
   { city: "Tokyo", title: "A stylish stay in Tokyo", query: "A stylish stay in Tokyo with breakfast" },
   { city: "London", title: "A city break in London", query: "A city break in London with fast wifi" },
   { city: "New York", title: "A weekend in New York", query: "A weekend in New York with a gym" },
@@ -147,7 +147,7 @@ const THEME_KEY = "hotel-indice:cc-theme";
 // Approximate mid-market rates (USD base, Aug 2026). Fixed values: swap for a live feed before showing them as exact.
 const currencyRates: Record<string, number> = { USD: 1, EUR: 0.867, GBP: 0.743, NGN: 1363, JPY: 157.7, INR: 95.4, AED: 3.6725, AUD: 1.4194, CAD: 1.4067, CHF: 0.8091, CNY: 6.7531, DKK: 6.4832, HKD: 7.8428, ILS: 3.0105, NZD: 1.6966, PLN: 3.7264, QAR: 3.6457, SAR: 3.75, SEK: 9.5211, SGD: 1.2823, TRY: 47.55, ZAR: 16.3874, THB: 31.1, MXN: 17.15 };
 const amenityChoices = ["fast_wifi", "pool", "breakfast", "spa", "gym", "workspace", "family_rooms", "parking"];
-const styleChoices = ["romantic", "boutique", "design_led", "remote_work", "family_friendly", "quiet", "wellness", "beach", "nightlife", "cultural"];
+const styleChoices = ["romantic", "boutique", "design_led", "remote_work", "family_friendly", "wellness", "beach", "nightlife", "cultural"];
 
 type TripForm = {
   destination: string;
@@ -659,6 +659,32 @@ function fitLine(match: Match): string {
   const matched = (match.evidence ?? []).filter((item) => item.type === "match" && !item.label.toLowerCase().startsWith("room ≥")).map((item) => item.label);
   const fromData = hotel.amenities.slice(0, 3).map((a) => amenityLabels[a] ?? a);
   return (matched.length ? matched : fromData).slice(0, 3).join(" · ");
+}
+
+function hasFitEvidence(match: Match): boolean {
+  return (match.evidence ?? []).some((item) => item.type === "match" && !item.label.toLowerCase().startsWith("room ≥"));
+}
+
+/** Shown when nothing in a search matched, or when there is no search yet. Uses the hotel's own editorial note. */
+function defaultHook(hotel: Hotel): string {
+  const first = (hotel.editorial_notes ?? "").trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+  if (first) return first.length > 110 ? first.slice(0, 107).trimEnd() + "…" : first;
+  return hotel.vibe_tags.slice(0, 2).map((tag) => vibeLabels[tag] ?? tag).join(" · ");
+}
+
+/** A caution built only from the data we have: thin reviews, or a price well above the rest of the results. */
+function dataCatch(match: Match, all: Match[]): string {
+  const { hotel } = match;
+  if (hotel.review_count > 0 && hotel.review_count < 100) return `Only ${hotel.review_count} reviews so far`;
+  // Compare only with stays in the same city (or the same country when a city is missing).
+  const place = (h: Hotel) => h.city || h.country;
+  const peers = all.filter((m) => place(m.hotel) === place(hotel));
+  const prices = peers.map((m) => m.hotel.estimated_price_per_night).filter((price) => price > 0);
+  if (hotel.estimated_price_per_night > 0 && prices.length >= 4) {
+    const cheaper = prices.filter((price) => price < hotel.estimated_price_per_night).length;
+    if (cheaper / prices.length >= 0.75) return "Priced above most stays in these results";
+  }
+  return "";
 }
 
 type CatchInfo = { kind: "caution" | "unverified" | "note"; text: string; label: string };
@@ -1262,12 +1288,16 @@ async function ask(text: string) {
 
           {(() => {
             const pool = base.filter((m) => m.hotel.review_count >= 100);
-            const example = [...(pool.length ? pool : base)].sort((a, b) => b.hotel.rating - a.hotel.rating)[0]?.hotel;
+            const hasCatch = (m: Match) => /[.!?]\s+\S/.test((m.hotel.editorial_notes ?? "").trim());
+            const candidates = (pool.length ? pool : base).filter(hasCatch);
+            const example = [...(candidates.length ? candidates : pool.length ? pool : base)].sort((a, b) => b.hotel.rating - a.hotel.rating)[0]?.hotel;
             if (!example) return null;
             const names = example.amenities.slice(0, 2).map((a) => localizedAmenity(a, language).toLowerCase());
             const why = names.length ? `${t.fitsTripThatWants} ${names.join(" and ")}.` : "";
             const notes = (example.editorial_notes ?? "").trim();
-            const firstSentence = (notes.match(/^.*?[.!?](\s|$)/)?.[0] ?? notes).trim();
+            const noteSentences = notes.split(/(?<=[.!?])\s+/).filter(Boolean);
+            const catchSentence = noteSentences.length > 1 ? noteSentences[noteSentences.length - 1] : "";
+            const watchOutLabel = ({ en: "Watch out", es: "Ten en cuenta", fr: "À surveiller" } as Record<string, string>)[language] ?? "Watch out";
             return (
               <section className="cc-sec" aria-labelledby="cc-ex">
                 <h2 id="cc-ex">{t.exampleStayTitle}</h2>
@@ -1275,14 +1305,14 @@ async function ask(text: string) {
                 <article className="cc-ex">
                   <div className="cc-ex-photo"><HotelPhoto src={example.image_urls[0]} name={example.name} eager={false} /></div>
                   <div className="cc-ex-body">
-                    <small>{example.city}, {example.country}</small>
+                    <small>{[example.city, example.country].filter(Boolean).join(", ")}</small>
                     <h3>{example.name}</h3>
                     <p className="cc-ex-meta">
                       <span>★ {example.rating.toFixed(1)}{example.review_count > 0 ? ` ${t.fromReviews} ${example.review_count} ${t.reviewsLabel}` : ""}</span>
                       <span>{example.estimated_price_per_night > 0 ? `${t.about} ${formatPrice(example.estimated_price_per_night)} ${t.aNight}` : t.rateOnRequest}</span>
                     </p>
                     {why && <><h4>{t.whyItFits}</h4><p>{why}</p></>}
-                    {firstSentence && <><h4>{t.goodToKnow}</h4><p>{firstSentence}</p></>}
+                    {catchSentence && <><h4>{watchOutLabel}</h4><p>{catchSentence}</p></>}
                   </div>
                 </article>
               </section>
@@ -1297,7 +1327,7 @@ async function ask(text: string) {
                 // A photo is used only once on this row, so a repeated catalog photo never shows twice.
                 const used = new Set<string>();
                 return POPULAR_TRIPS.map((trip) => {
-                  const candidate = TILE_PHOTOS[trip.city] ?? base.find((m) => m.hotel.city === trip.city)?.hotel.image_urls[0];
+                  const candidate = TILE_PHOTOS[trip.city];
                   const photo = candidate && !used.has(candidate) ? candidate : undefined;
                   if (photo) used.add(photo);
                   return (
@@ -1565,6 +1595,7 @@ async function ask(text: string) {
             )}
             {shown.map((match, index) => {
               const { hotel, fit_percent } = match;
+              const fitVaries = new Set(shown.map((m) => m.fit_percent)).size > 1;
               const picked = compareIds.includes(hotel.id);
               const fit = fitLine(match);
               const info = catchInfo(match);
@@ -1572,14 +1603,14 @@ async function ask(text: string) {
                 <article key={hotel.id} className="cc-card" data-hotel={hotel.id} aria-current={selectedId === hotel.id}>
                   <button type="button" className="cc-card-media" onClick={() => openHotel(hotel.id)} aria-label={`View details of ${hotel.name}`}>
                     <HotelPhoto src={hotel.image_urls[0]} name={hotel.name} eager={index < 18} />
-                    <span className="cc-rank">{String(index + 1).padStart(2, "0")}{typeof fit_percent === "number" ? <i>{fit_percent}% {t.matchLabel}</i> : null}</span>
+                    {fitVaries && typeof fit_percent === "number" ? <span className="cc-rank"><i>{fit_percent}% {t.matchLabel}</i></span> : null}
                     <span className="cc-score"><Star size={12} fill="currentColor" aria-hidden /> {hotel.rating.toFixed(1)}{hotel.review_count > 0 ? <small>({hotel.review_count.toLocaleString("en-US")})</small> : null}</span>
                   </button>
                   <button type="button" className="cc-heart" aria-pressed={stayIds.has(hotel.id)} aria-label={stayIds.has(hotel.id) ? `Remove ${hotel.name} from saved stays` : `Save ${hotel.name}`} onClick={() => toggleStay(match)}>
                     <Heart size={15} fill={stayIds.has(hotel.id) ? "currentColor" : "none"} aria-hidden />
                   </button>
                   <div className="cc-card-body">
-                    <p className="cc-card-city"><MapPin size={12} aria-hidden /> {hotel.city}, {hotel.country}</p>
+                    <p className="cc-card-city"><MapPin size={12} aria-hidden /> {[hotel.city, hotel.country].filter(Boolean).join(", ")}</p>
                     <button type="button" className="cc-card-name" onClick={() => openHotel(hotel.id)}>{hotel.name}</button>
 
                   {match.tripadvisor && (
@@ -1613,10 +1644,13 @@ async function ask(text: string) {
                     </div>
                   )}
 
-                    {fit && <p className="cc-fit"><i aria-hidden>✓</i><span>{fit}</span></p>}
+                    {hasFitEvidence(match) && fit
+                      ? <p className="cc-fit"><i aria-hidden>✓</i><span>{fit}</span></p>
+                      : defaultHook(hotel) ? <p className="cc-hook">{defaultHook(hotel)}</p> : null}
                     {info?.kind === "caution" && <p className="cc-catch"><i aria-hidden>!</i><span>{info.text}</span></p>}
                     {info?.kind === "unverified" && <p className="cc-unsure">{info.label} not confirmed</p>}
                     {info?.kind === "note" && <p className="cc-note-line">{info.text}</p>}
+                    {!info && dataCatch(match, shown) && <p className="cc-catch"><i aria-hidden>!</i><span>{dataCatch(match, shown)}</span></p>}
                     <div className="cc-card-foot">
                       <div className="cc-card-price">
                         {hotel.estimated_price_per_night > 0
@@ -1786,7 +1820,7 @@ async function ask(text: string) {
                   )}
                 </>)}
                 {active === "info" && (<>
-                  <p className="cc-meta"><MapPin size={13} aria-hidden /> {hotel.city}, {hotel.country}</p>
+                  <p className="cc-meta"><MapPin size={13} aria-hidden /> {[hotel.city, hotel.country].filter(Boolean).join(", ")}</p>
                   <p className="cc-priceline"><strong>{hotel.estimated_price_per_night > 0 ? formatPrice(hotel.estimated_price_per_night) : t.rateOnRequest}</strong> {t.aNight}</p>
                   <p className="cc-editorial">{hotel.editorial_notes}</p>
                   <button type="button" className="cc-maplink" onClick={() => showOnMap(hotel.id)}><MapIcon size={16} aria-hidden /> {t.showOnMap}</button>
@@ -1858,7 +1892,7 @@ async function ask(text: string) {
                     <img src={hotel.image_urls[0]} alt={hotel.name} />
                     <div className="cc-cmp-body">
                       <div className="cc-cmp-head">
-                        <div><p className="cc-cmp-loc">{hotel.city}, {hotel.country}</p><h3>{hotel.name}</h3></div>
+                        <div><p className="cc-cmp-loc">{[hotel.city, hotel.country].filter(Boolean).join(", ")}</p><h3>{hotel.name}</h3></div>
                         <span className="cc-cmp-rate">{hotel.rating.toFixed(1)}</span>
                       </div>
                       <div className="cc-cmp-stats">
@@ -1906,7 +1940,7 @@ async function ask(text: string) {
               <div>
                 <p className="cc-label">{t.yourStay}</p>
                 <strong>{bookingHotel.name}</strong>
-                <span>{bookingHotel.city}, {bookingHotel.country}</span>
+                <span>{[bookingHotel.city, bookingHotel.country].filter(Boolean).join(", ")}</span>
               </div>
               <div className="cc-handoff-price">
                 <span>{t.hotelIndiceEstimate}</span>
@@ -1970,7 +2004,7 @@ async function ask(text: string) {
                       <button type="button" className="cc-trip-main cc-stay-main" onClick={() => { setTripsOpen(false); openHotel(item.hotel.id); }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={item.hotel.image_urls[0]} alt="" />
-                        <span><strong>{item.hotel.name}</strong><span>{item.hotel.city}, {item.hotel.country}{item.hotel.estimated_price_per_night > 0 ? ` · ${formatPrice(item.hotel.estimated_price_per_night)}` : ""}</span></span>
+                        <span><strong>{item.hotel.name}</strong><span>{[item.hotel.city, item.hotel.country].filter(Boolean).join(", ")}{item.hotel.estimated_price_per_night > 0 ? ` · ${formatPrice(item.hotel.estimated_price_per_night)}` : ""}</span></span>
                       </button>
                       <button type="button" className="cc-trip-icon" aria-label={`Remove ${item.hotel.name}`} onClick={() => toggleStay(item)}><Trash2 size={16} aria-hidden /></button>
                     </div>
