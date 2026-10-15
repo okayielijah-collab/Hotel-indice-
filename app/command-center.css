@@ -5308,3 +5308,36 @@
     padding-bottom: 0 !important;
   }
 }
+
+/* Destination search button follows the active theme */
+.cc-root[data-theme="light"] .cc-head-search > .cc-plan-toggle {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #183e50 !important;
+  border-color: #dfe4da !important;
+}
+
+.cc-root[data-theme="light"] .cc-head-search > .cc-plan-toggle > b,
+.cc-root[data-theme="light"] .cc-head-search > .cc-plan-toggle > span,
+.cc-root[data-theme="light"] .cc-head-search > .cc-plan-toggle > svg {
+  color: #183e50 !important;
+  -webkit-text-fill-color: #183e50 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.cc-root[data-theme="dark"] .cc-head-search > .cc-plan-toggle {
+  background: #000 !important;
+  background-color: #000 !important;
+  color: #fff !important;
+  border-color: #333 !important;
+}
+
+.cc-root[data-theme="dark"] .cc-head-search > .cc-plan-toggle > b,
+.cc-root[data-theme="dark"] .cc-head-search > .cc-plan-toggle > span,
+.cc-root[data-theme="dark"] .cc-head-search > .cc-plan-toggle > svg {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
