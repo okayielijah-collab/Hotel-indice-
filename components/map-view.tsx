@@ -276,6 +276,12 @@ export function MapView({ matches, selectedId, onSelect, formatPrice, maptilerKe
       if (!instance) return;
       instance.invalidateSize();
       const size = instance.getSize();
+      if (size.x >= 50 && size.y >= 50) {
+        const coverZoom = instance.getBoundsZoom([[-85, -180], [85, 180]], true);
+        instance.setMinZoom(coverZoom);
+        instance.setMaxBounds([[-85, -540], [85, 540]]);
+        if (instance.getZoom() < coverZoom) instance.setZoom(coverZoom);
+      }
       if (pendingFit.current && size.x >= 50 && size.y >= 50) {
         const run = pendingFit.current;
         pendingFit.current = null;

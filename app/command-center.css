@@ -5341,3 +5341,29 @@
   visibility: visible !important;
   opacity: 1 !important;
 }
+
+/* ranges panel on phones: sits in the page on the list, floats over the map on the map view */
+@media (max-width: 760px) {
+  .cc-root[data-strip="open"] .cc-strip { overflow: visible !important; max-height: none !important; }
+  .cc-root[data-view="map"][data-strip="open"] .cc-strip { position: relative; z-index: 60; }
+  .cc-root[data-view="map"][data-strip="open"] .cc-filter-panel {
+    position: absolute; left: 12px; right: 12px; top: calc(100% - 4px); z-index: 61; margin-top: 0;
+    max-height: 62dvh; overflow-y: auto; background: var(--cc-panel);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  }
+}
+
+/* Ask Indice floats over the map on desktop; phones keep it in the header */
+@media (min-width: 761px) { .cc-askhead { display: none; } }
+.cc-ask-phone { display: none; }
+@media (max-width: 760px) {
+  /* Map view: Ask Indice floats on the map, top right. List view: it sits at the top right of the header. */
+  .cc-head-end .cc-askhead { position: absolute; top: 12px; right: 12px; display: inline-flex !important; z-index: 5; }
+  .cc-root[data-view="map"] .cc-head-end .cc-askhead { display: none !important; }
+  .cc-ask-phone .cc-ask-btn { display: none !important; }
+  .cc-root[data-view="list"] .cc-ask-phone { display: block; }
+  .cc-ask-phone .cc-ask { position: fixed; top: 12px; left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 24px); overflow-y: auto; z-index: 970; }
+}
+
+/* no Ask button on the landing page: the hero box is already the place to describe a trip */
+.cc-root[data-entered="false"] .cc-askhead { display: none !important; }

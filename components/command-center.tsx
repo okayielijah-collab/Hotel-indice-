@@ -1411,7 +1411,7 @@ async function ask(text: string) {
       <div className="cc-views" role="group" aria-label={t.switchView}>
         <button
           type="button"
-          onClick={() => setView(view === "map" ? "list" : "map")}
+          onClick={() => { setView(view === "map" ? "list" : "map"); setStripOpen(false); setActiveFilter(null); }}
           aria-label={view === "map" ? t.showHotelList : t.showMap}
         >
           {view === "map" ? "List" : "Map"}
@@ -1697,6 +1697,8 @@ async function ask(text: string) {
             );
           })()}
 
+          {!askOpen && <button type="button" className="cc-ask-btn" onClick={() => setAskOpen(true)}><Sparkles size={16} aria-hidden /> {t.askIndice}</button>}
+
           {askOpen && (
             <div className="cc-ask" role="dialog" aria-label={t.describeTrip}>
               <div className="cc-ask-head"><span>{t.describeTrip}</span><button type="button" onClick={() => setAskOpen(false)} aria-label={t.close}><X size={16} /></button></div>
@@ -1713,6 +1715,25 @@ async function ask(text: string) {
             </div>
           )}
         </section>
+        <div className="cc-ask-phone">
+          {!askOpen && <button type="button" className="cc-ask-btn" onClick={() => setAskOpen(true)}><Sparkles size={16} aria-hidden /> {t.askIndice}</button>}
+
+          {askOpen && (
+            <div className="cc-ask" role="dialog" aria-label={t.describeTrip}>
+              <div className="cc-ask-head"><span>{t.describeTrip}</span><button type="button" onClick={() => setAskOpen(false)} aria-label={t.close}><X size={16} /></button></div>
+              <textarea spellCheck={false} value={askText} maxLength={600} onChange={(e) => setAskText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(askText); }}
+                placeholder={t.describeTripPlaceholder} aria-label={t.describeTrip} autoFocus />
+              {!askText && (
+                <div className="cc-ask-examples">
+                  {examples.map((ex) => <button key={ex} type="button" onClick={() => { setAskText(ex); ask(ex); }}>{ex}</button>)}
+                </div>
+              )}
+              {askError && <div className="cc-ask-msg err" role="alert">{askError}</div>}
+              <button type="button" className="cc-ask-go" disabled={asking || !askText.trim()} onClick={() => ask(askText)}>{asking ? t.finding : t.findStays}</button>
+            </div>
+          )}
+        </div>
       </div>
         </>
       )}
